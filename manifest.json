@@ -1,0 +1,38 @@
+{
+  "name": "Thủy lợi Nhật Tựu",
+  "short_name": "Thủy lợi NT",
+  "description": "Bản đồ hệ thống thủy lợi & lập biên bản vi phạm",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1a5276",
+  "theme_color": "#1a5276",
+  "orientation": "any",
+  "lang": "vi",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Bản đồ thủy lợi",
+      "url": "./",
+      "icons": [{"src": "icon-192.png", "sizes": "192x192"}]
+    },
+    {
+      "name": "Lập biên bản vi phạm",
+      "url": "./bien-ban.html",
+      "icons": [{"src": "icon-192.png", "sizes": "192x192"}]
+    }
+  ]
+}

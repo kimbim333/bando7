@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Biên bản TL"/>
+<meta name="theme-color" content="#1a5276"/>
+<link rel="manifest" href="manifest.json"/>
+<title>Biên bản vi phạm thủy lợi</title>
+<style>
+/* ===== SCREEN STYLES ===== */
+:root{
+  --accent:#1a5276; --red:#c0392b; --bg:#f0f2f5;
+  --card:#fff; --border:#ddd; --text:#222; --text2:#666;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;}
+
+.app-bar{background:var(--accent);color:#fff;padding:12px 16px;
+  display:flex;align-items:center;gap:10px;
+  position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.3);}
+.app-bar h1{font-size:14px;font-weight:700;flex:1;line-height:1.3;}
+.app-bar a{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);
+  color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;text-decoration:none;}
+
+.tabs{display:flex;background:#fff;border-bottom:2px solid var(--accent);overflow-x:auto;
+  position:sticky;top:54px;z-index:99;box-shadow:0 2px 4px rgba(0,0,0,.1);}
+.tab{flex:none;padding:10px 14px;border:none;background:transparent;
+  font-size:12.5px;font-weight:600;color:var(--text2);cursor:pointer;
+  white-space:nowrap;border-bottom:3px solid transparent;margin-bottom:-2px;}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent);}
+
+.panel{display:none;padding:14px;}
+.panel.on{display:block;}
+
+.card{background:var(--card);border-radius:10px;border:1px solid var(--border);margin-bottom:14px;overflow:hidden;}
+.card-head{background:var(--accent);color:#fff;padding:9px 14px;font-size:12.5px;font-weight:700;}
+.card-body{padding:12px 14px;}
+
+.row{display:flex;gap:10px;margin-bottom:10px;}
+.row .f{flex:1;min-width:0;}
+.f label{display:block;font-size:10.5px;color:var(--text2);font-weight:700;
+  margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em;}
+.f input,.f textarea,.f select{width:100%;border:1px solid var(--border);border-radius:6px;
+  padding:9px 10px;font-size:13.5px;font-family:inherit;background:#fff;outline:none;}
+.f input:focus,.f textarea:focus,.f select:focus{border-color:var(--accent);}
+.f textarea{resize:vertical;min-height:72px;}
+
+.btn-gps{background:var(--accent);color:#fff;border:none;border-radius:6px;
+  padding:9px 10px;font-size:12px;cursor:pointer;height:38px;white-space:nowrap;}
+
+/* Photos */
+.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin-top:8px;}
+.thumb{position:relative;border-radius:6px;overflow:hidden;aspect-ratio:1;border:1px solid #ddd;}
+.thumb img{width:100%;height:100%;object-fit:cover;}
+.thumb .del{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.6);
+  color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:11px;}
+.add-photo{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:4px;border:2px dashed #ccc;border-radius:6px;aspect-ratio:1;
+  background:#f8f8f8;cursor:pointer;font-size:11px;color:#888;}
+.add-photo span{font-size:26px;}
+.add-photo input{display:none;}
+
+/* Sketch */
+.sk-bar{display:flex;gap:6px;padding:8px;background:#f5f5f5;border-bottom:1px solid #ddd;flex-wrap:wrap;align-items:center;}
+.sk-bar select,.sk-bar input[type=color],.sk-bar input[type=range]{
+  padding:4px;border:1px solid #ccc;border-radius:4px;font-size:12px;}
+.sk-bar button{padding:5px 8px;border:1px solid #ccc;border-radius:4px;background:#fff;font-size:11px;cursor:pointer;}
+#canvas{display:block;width:100%;touch-action:none;background:#fff;cursor:crosshair;}
+
+/* Action bar */
+.action-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;
+  border-top:1px solid #ddd;padding:10px 14px;display:flex;gap:8px;
+  box-shadow:0 -4px 12px rgba(0,0,0,.1);z-index:100;}
+.btn-main{flex:1;background:var(--accent);color:#fff;border:none;border-radius:8px;
+  padding:13px;font-size:14px;font-weight:700;cursor:pointer;}
+.btn-sec{flex:1;background:#f0f0f0;color:#333;border:1px solid #ddd;border-radius:8px;
+  padding:13px;font-size:13px;font-weight:600;cursor:pointer;}
+.gap{height:75px;}
+
+/* Violation list cards */
+.vp{background:#fff;border:1px solid #ddd;border-radius:10px;margin-bottom:10px;overflow:hidden;}
+.vp-h{padding:9px 14px;background:#eaf2ff;font-weight:700;font-size:13px;display:flex;gap:8px;align-items:center;}
+.vp-b{padding:10px 14px;font-size:12px;color:#555;}
+.vp-b .r{display:flex;gap:6px;margin-bottom:3px;}
+.vp-b .r .l{width:100px;flex:none;color:#888;}
+.vp-b .r .v{font-weight:600;color:#222;}
+.vp-acts{padding:8px 14px;border-top:1px solid #eee;display:flex;gap:6px;}
+.vbtn{padding:6px 10px;border-radius:5px;font-size:11.5px;cursor:pointer;border:1px solid transparent;font-weight:600;}
+.vbtn.e{background:#eaf2ff;color:var(--accent);}
+.vbtn.p{background:#e8f8e8;color:#1a7431;}
+.vbtn.d{background:#fdecea;color:var(--red);}
+
+/* Timemark button */
+.tm-btn{display:flex;align-items:center;gap:10px;background:#1c2952;color:#fff;
+  padding:13px 16px;border-radius:10px;text-decoration:none;font-weight:700;font-size:14px;margin-bottom:8px;}
+.tm-btn .ico{font-size:24px;}
+.tm-hint{font-size:11.5px;color:#888;line-height:1.6;padding:8px;
+  background:#f8f8f8;border-radius:6px;border:1px solid #eee;}
+
+/* ===== PRINT STYLES ===== */
+@media print {
+  .app-bar,.tabs,.action-bar,.no-print{display:none!important;}
+  body{font-family:'Times New Roman',serif;font-size:11pt;background:#fff;color:#000;}
+  .panel{display:block!important;padding:0;}
+  .card{border:none;border-radius:0;margin:0;page-break-inside:avoid;}
+  .card-head{display:none;}
+  .card-body{padding:0;}
+  .bb-doc{display:block!important;}
+  .pb{page-break-before:always;}
+  input,textarea,select{border:none!important;padding:0!important;font-size:11pt!important;background:transparent!important;}
+  canvas{max-width:100%;border:1px solid #000;}
+  .photo-print img{max-width:48%;margin:4px;}
+}
+
+/* Print document layout */
+.bb-doc{display:none;}
+
+@media screen {
+  .print-preview-hint{
+    background:#fffde7;border:1px solid #f9a825;border-radius:6px;
+    padding:10px 14px;font-size:12px;margin-bottom:14px;color:#5d4037;
+  }
+}
+
+@media (max-width:600px){.row{flex-direction:column;gap:6px;}}
+</style>
+</head>
+<body>
+
+<div class="app-bar">
+  <div>
+    <h1>⚠️ Biên bản vi phạm thủy lợi</h1>
+    <div style="font-size:10.5px;opacity:.8;">Xí nghiệp Thủy lợi Nhật Tựu</div>
+  </div>
+  <a href="index.html">🗺 Bản đồ</a>
+</div>
+
+<div class="tabs">
+  <button class="tab on" onclick="go('bb',this)">📋 Biên bản</button>
+  <button class="tab" onclick="go('sh',this)">✏️ Sơ họa</button>
+  <button class="tab" onclick="go('anh',this)">📷 Ảnh</button>
+  <button class="tab" onclick="go('ds',this)">📁 Danh sách</button>
+</div>
+
+<!-- ===== TAB 1: BIÊN BẢN ===== -->
+<div id="p-bb" class="panel on">
+
+  <div class="card">
+    <div class="card-head">🏛 Thông tin lập biên bản</div>
+    <div class="card-body">
+      <div class="row">
+        <div class="f"><label>Số BB (lần)</label><input id="so" type="number" value="1"/></div>
+        <div class="f"><label>Ngày lập</label><input id="ngay" type="date"/></div>
+        <div class="f"><label>Giờ</label><input id="gio" type="time"/></div>
+      </div>
+      <div class="f"><label>Địa điểm lập biên bản</label><input id="dd" placeholder="TDP Thọ Lão, P. Kim Thanh, Ninh Bình"/></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">👮 Người lập biên bản</div>
+    <div class="card-body">
+      <div class="row">
+        <div class="f"><label>Họ tên (1)</label><input id="n1" placeholder="VD: Lê Trọng Tuần"/></div>
+        <div class="f"><label>Chức vụ</label><input id="cv1" placeholder="Cán bộ KT"/></div>
+      </div>
+      <div class="row">
+        <div class="f"><label>Họ tên (2)</label><input id="n2"/></div>
+        <div class="f"><label>Chức vụ</label><input id="cv2"/></div>
+      </div>
+      <div class="f" style="margin-top:10px"><label>Đơn vị</label><input id="dv" value="Xí nghiệp Thủy lợi Nhật Tựu"/></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">⚠️ Chủ thể vi phạm</div>
+    <div class="card-body">
+      <div class="row">
+        <div class="f"><label>Họ tên người vi phạm</label><input id="vp_ten" placeholder="VD: Vũ Thị Dắc"/></div>
+        <div class="f"><label>Giới tính</label>
+          <select id="vp_gt"><option>Nữ</option><option>Nam</option></select></div>
+      </div>
+      <div class="row">
+        <div class="f"><label>Quốc tịch</label><input id="vp_qt" value="Việt Nam"/></div>
+        <div class="f"><label>Nghề nghiệp</label><input id="vp_nn"/></div>
+      </div>
+      <div class="f" style="margin-top:10px"><label>Nơi ở hiện tại</label>
+        <input id="vp_noo" placeholder="TDP Thọ Lão 2, P. Kim Thanh, Ninh Bình"/></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">📍 Vị trí vi phạm</div>
+    <div class="card-body">
+      <div class="f" style="margin-bottom:10px"><label>Tên công trình</label>
+        <input id="ct" placeholder="VD: Đê sông Nhuệ"/></div>
+      <div class="row">
+        <div class="f"><label>Phường/xã</label><input id="px" placeholder="Kim Thanh"/></div>
+        <div class="f"><label>Phía</label><input id="phia" placeholder="Đồng"/></div>
+        <div class="f"><label>Bờ</label><input id="bo" placeholder="Hữu"/></div>
+      </div>
+      <div class="row">
+        <div class="f"><label>Sông</label><input id="song" placeholder="Nhuệ"/></div>
+        <div class="f"><label>Từ Km</label><input id="tu_km" placeholder="K68+225"/></div>
+        <div class="f"><label>Đến Km</label><input id="den_km" placeholder="K68+227"/></div>
+      </div>
+      <div class="row" style="align-items:flex-end;margin-top:4px;">
+        <div class="f"><label>Tọa độ X (điểm đầu)</label><input id="x1" placeholder="20.622882"/></div>
+        <div class="f"><label>Y</label><input id="y1" placeholder="105.922102"/></div>
+        <button class="btn-gps" onclick="getGPS()">📍 GPS</button>
+      </div>
+      <div class="row">
+        <div class="f"><label>Tọa độ X (điểm cuối)</label><input id="x2"/></div>
+        <div class="f"><label>Y</label><input id="y2"/></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">📝 Mô tả hành vi vi phạm</div>
+    <div class="card-body">
+      <div class="f"><label>Hành vi 1</label>
+        <textarea id="hv1" placeholder="VD: Xây trụ cổng, láng mặt bê tông làm lối đi trên mái đê phía đồng..."></textarea></div>
+      <div class="row" style="margin-top:8px;">
+        <div class="f">
+          <label>Kích thước vi phạm</label>
+          <input id="kt" placeholder="VD: 2 trụ 0,4x0,4x2,5m; Láng BT 3x2=6m²; Rãnh 3x2m"/>
+        </div>
+      </div>
+      <div class="f" style="margin-top:8px"><label>Hành vi 2 (nếu có)</label><textarea id="hv2"></textarea></div>
+      <div class="f" style="margin-top:8px"><label>Hành vi 3 (nếu có)</label><textarea id="hv3"></textarea></div>
+      <div class="row" style="margin-top:10px">
+        <div class="f"><label>Yêu cầu khắc phục trước ngày</label><input id="khp" type="date"/></div>
+      </div>
+      <div class="f" style="margin-top:8px"><label>Ý kiến người vi phạm</label><textarea id="yk_vp"></textarea></div>
+    </div>
+  </div>
+  <div class="gap"></div>
+</div>
+
+<!-- ===== TAB 2: SƠ HỌA ===== -->
+<div id="p-sh" class="panel">
+  <div class="card">
+    <div class="card-head">✏️ Vẽ sơ họa mặt bằng hiện trạng</div>
+    <div class="sk-bar">
+      <input type="color" id="skc" value="#000000" title="Màu"/>
+      <input type="range" id="sks" min="1" max="20" value="3" style="width:70px"/>
+      <select id="skt">
+        <option value="pen">Bút</option>
+        <option value="line">Đường thẳng</option>
+        <option value="rect">Hình chữ nhật</option>
+        <option value="text">Chữ</option>
+        <option value="eraser">Tẩy</option>
+      </select>
+      <button onclick="undoSk()">↩ Hoàn tác</button>
+      <button onclick="clearSk()">🗑 Xóa</button>
+    </div>
+    <canvas id="canvas" width="700" height="500"></canvas>
+  </div>
+  <div class="gap"></div>
+</div>
+
+<!-- ===== TAB 3: ẢNH ===== -->
+<div id="p-anh" class="panel">
+
+  <div class="card">
+    <div class="card-head">📷 Chụp ảnh có tọa độ & thông tin vi phạm</div>
+    <div class="card-body">
+
+      <!-- Live info preview from form -->
+      <div id="stamp-preview" style="background:#f0f7ff;border:1px solid #3498db33;
+        border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.7;">
+        <div style="font-weight:700;color:#1a5276;margin-bottom:4px;">📌 Thông tin sẽ in lên ảnh:</div>
+        <div id="sp-time" style="color:#555;">⏰ Ngày giờ: tự động khi chụp</div>
+        <div id="sp-gps"  style="color:#555;">📍 Tọa độ: tự lấy khi chụp</div>
+        <div id="sp-loc"  style="color:#555;">📍 Vị trí: <span id="sp-loc-val">—</span></div>
+        <div id="sp-ho"   style="color:#555;">👤 Hộ vi phạm: <span id="sp-ho-val">—</span></div>
+        <div id="sp-hv"   style="color:#c0392b;">⚠️ Hành vi: <span id="sp-hv-val">—</span></div>
+        <div id="sp-kt"   style="color:#c0392b;">📐 Kích thước: <span id="sp-kt-val">—</span></div>
+      </div>
+
+      <!-- Single capture button -->
+      <label id="cam-label" style="display:flex;align-items:center;justify-content:center;
+        gap:10px;background:#c0392b;color:#fff;border-radius:10px;padding:14px;
+        font-size:15px;font-weight:700;cursor:pointer;margin-bottom:8px;">
+        📷 Chụp ảnh (tự lấy GPS + đóng dấu)
+        <input type="file" accept="image/*" capture="environment"
+               id="stamp-cam" style="display:none" onchange="stampPhoto(this)"/>
+      </label>
+
+      <label style="display:flex;align-items:center;justify-content:center;gap:8px;
+        border:1px dashed #ccc;border-radius:8px;padding:10px;cursor:pointer;
+        font-size:12.5px;color:#666;background:#f9f9f9;margin-bottom:6px;">
+        🖼 Chọn ảnh từ máy (cũng sẽ đóng dấu)
+        <input type="file" accept="image/*" multiple style="display:none"
+               onchange="stampPhoto(this)"/>
+      </label>
+
+      <label style="display:flex;align-items:center;justify-content:center;gap:8px;
+        border:1px dashed #aaa;border-radius:8px;padding:10px;cursor:pointer;
+        font-size:12.5px;color:#888;background:#fafafa;">
+        📎 Đính kèm ảnh Timemark (không đóng dấu lại)
+        <input type="file" accept="image/*" multiple style="display:none"
+               onchange="addPh(this)"/>
+      </label>
+
+      <canvas id="stamp-canvas" style="display:none;"></canvas>
+    </div>
+  </div>
+
+  <!-- Link Timemark -->
+  <div class="card">
+    <div class="card-head" style="background:#2c3e50;">📲 Dùng Timemark (nếu đã cài)</div>
+    <div class="card-body">
+      <a class="tm-btn" href="https://apps.apple.com/app/id6446071834" target="_blank">
+        <span class="ico">📷</span>
+        <div>
+          <div>Mở Timemark trên iPhone</div>
+          <div style="font-size:11px;font-weight:400;opacity:.8;">Chụp xong đính kèm ảnh lên trên</div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Gallery -->
+  <div class="card">
+    <div class="card-head">🖼 Ảnh đã đính kèm (<span id="ph-count-num">0</span> ảnh)</div>
+    <div class="card-body">
+      <div class="photo-grid" id="pgrid"></div>
+      <div id="ph-count" style="margin-top:6px;font-size:12px;color:#888;"></div>
+    </div>
+  </div>
+  <div class="gap"></div>
+</div>
+
+<!-- ===== TAB 4: DANH SÁCH ===== -->
+<div id="p-ds" class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+    <b style="font-size:13px;">Biên bản đã lập</b>
+    <button onclick="newBB()" style="background:var(--accent);color:#fff;border:none;
+      border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;">+ Tạo mới</button>
+  </div>
+  <div id="vlist"><div style="text-align:center;padding:40px;color:#999;font-size:13px;">
+    Chưa có biên bản nào.</div></div>
+  <div class="gap"></div>
+</div>
+
+  <!-- Photo preview modal -->
+  <div id="photo-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,.92);z-index:9999;flex-direction:column;align-items:center;justify-content:center;">
+    <div style="position:relative;max-width:96vw;max-height:80vh;">
+      <img id="modal-img" style="max-width:96vw;max-height:75vh;border-radius:8px;display:block;"/>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:16px;">
+      <button onclick="saveToAlbum()" style="background:#3fb6a8;border:none;color:#fff;
+        padding:13px 24px;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;">
+        ⬇ Lưu vào Album
+      </button>
+      <button onclick="document.getElementById('photo-modal').style.display='none'"
+        style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;
+        padding:13px 24px;border-radius:8px;font-size:15px;cursor:pointer;">
+        Đóng
+      </button>
+    </div>
+    <div style="color:rgba(255,255,255,.6);font-size:11.5px;margin-top:8px;text-align:center;">
+      Giữ ngón tay vào ảnh → "Lưu ảnh" (iPhone)<br>
+      hoặc bấm "Lưu vào Album" bên trên
+    </div>
+  </div>
+<div class="action-bar no-print">
+  <button class="btn-sec" onclick="save()">💾 Lưu nháp</button>
+  <button class="btn-main" onclick="printPDF()">🖨 Xuất PDF / In</button>
+</div>
+
+<!-- ===== PRINT DOCUMENT ===== -->
+<div id="print-area" style="display:none;">
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+// ===== STATE =====
+let photos=[], vlist=JSON.parse(localStorage.getItem('vlist')||'[]'), cid=null, skHist=[];
+let sk, skCtx, drawing=false, sx=0, sy=0, snap;
+
+// ===== INIT =====
+window.onload=()=>{
+  const n=new Date();
+  g('ngay').value=n.toISOString().slice(0,10);
+  g('gio').value=n.toTimeString().slice(0,5);
+  // URL params from map
+  const p=new URLSearchParams(location.search);
+  if(p.get('ct'))  g('ct').value=p.get('ct');
+  if(p.get('km'))  g('tu_km').value=p.get('km');
+  if(p.get('lat')) g('x1').value=p.get('lat');
+  if(p.get('lng')) g('y1').value=p.get('lng');
+  initSk(); renderList();
+};
+
+function g(id){return document.getElementById(id);}
+function v(id){return g(id)?g(id).value.trim():'';}
+
+// ===== TABS =====
+function go(id,btn){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+  g('p-'+id).classList.add('on');
+  btn.classList.add('on');
+}
+
+// ===== GPS =====
+function getGPS(){
+  if(!navigator.geolocation){alert('Thiết bị không hỗ trợ GPS');return;}
+  navigator.geolocation.getCurrentPosition(
+    pos=>{g('x1').value=pos.coords.latitude.toFixed(6);g('y1').value=pos.coords.longitude.toFixed(6);},
+    e=>alert('Lỗi GPS: '+e.message),{enableHighAccuracy:true,timeout:10000});
+}
+
+// ===== PHOTOS =====
+function addPh(inp){
+  Array.from(inp.files).forEach(f=>{
+    const r=new FileReader();
+    r.onload=e=>{photos.push({id:Date.now()+'r',src:e.target.result,nm:f.name});renderPhotos();};
+    r.readAsDataURL(f);
+  });
+  inp.value='';
+}
+function delPh(id){photos=photos.filter(p=>p.id!==id);renderPhotos();}
+function renderPhotos(){
+  const g2=g('pgrid');
+  g2.querySelectorAll('.thumb').forEach(e=>e.remove());
+  photos.forEach(p=>{
+    const d=document.createElement('div');d.className='thumb';
+    d.innerHTML=`<img src="${p.src}"/><button class="del" onclick="delPh('${p.id}')">✕</button>`;
+    g2.prepend(d);
+  });
+  g('ph-count').textContent=photos.length?`Đã có ${photos.length} ảnh`:'Chưa có ảnh';
+}
+
+// ===== SKETCH =====
+function initSk(){
+  sk=g('canvas');skCtx=sk.getContext('2d');
+  const r=sk.getBoundingClientRect();
+  sk.width=Math.max(r.width,300)*window.devicePixelRatio;
+  sk.height=sk.width*0.7;
+  skCtx.fillStyle='#fff';skCtx.fillRect(0,0,sk.width,sk.height);
+  sk.addEventListener('pointerdown',skD);sk.addEventListener('pointermove',skM);
+  sk.addEventListener('pointerup',skU);sk.addEventListener('pointerleave',skU);
+}
+function pos(e){const r=sk.getBoundingClientRect(),rx=sk.width/r.width,ry=sk.height/r.height;
+  return{x:(e.clientX-r.left)*rx,y:(e.clientY-r.top)*ry};}
+function skD(e){e.preventDefault();drawing=true;const p=pos(e);sx=p.x;sy=p.y;
+  snap=skCtx.getImageData(0,0,sk.width,sk.height);skHist.push(snap);
+  const t=v('skt');
+  if(t==='pen'||t==='eraser'){skCtx.beginPath();skCtx.moveTo(sx,sy);}
+  if(t==='text'){const tx=prompt('Nhập chữ:');if(tx){
+    skCtx.fillStyle=g('skc').value;
+    skCtx.font=`${(parseInt(g('sks').value)+10)*window.devicePixelRatio}px sans-serif`;
+    skCtx.fillText(tx,sx,sy);}drawing=false;}}
+function skM(e){if(!drawing)return;e.preventDefault();const p=pos(e);
+  const t=v('skt'),c=g('skc').value,s=parseInt(g('sks').value)*window.devicePixelRatio;
+  skCtx.strokeStyle=t==='eraser'?'#fff':c;skCtx.lineWidth=t==='eraser'?s*3:s;
+  skCtx.lineCap='round';skCtx.lineJoin='round';
+  if(t==='pen'||t==='eraser'){skCtx.lineTo(p.x,p.y);skCtx.stroke();}
+  else if(t==='line'||t==='rect'){
+    if(snap)skCtx.putImageData(snap,0,0);skCtx.beginPath();
+    if(t==='line'){skCtx.moveTo(sx,sy);skCtx.lineTo(p.x,p.y);}
+    else skCtx.strokeRect(sx,sy,p.x-sx,p.y-sy);skCtx.stroke();}}
+function skU(){drawing=false;}
+function undoSk(){if(skHist.length)skCtx.putImageData(skHist.pop(),0,0);}
+function clearSk(){if(confirm('Xóa sơ họa?')){skCtx.fillStyle='#fff';skCtx.fillRect(0,0,sk.width,sk.height);}}
+
+// ===== GPS STAMP CAMERA =====
+let stampGPS = null;
+
+function updateStampPreview(){
+  const kCoc=v('tu_km'),bo=v('bo'),ct=v('ct'),hv1=v('hv1'),kt=v('kt'),ho=v('vp_ten');
+  const set=(id,txt)=>{const el=document.getElementById(id);if(el)el.textContent=txt||'—';};
+  set('sp-loc-val',[kCoc&&`K cọc ${kCoc}`,bo&&`Bờ ${bo}`,ct&&`Tuyến ${ct}`].filter(Boolean).join('  |  '));
+  set('sp-ho-val', ho  || '(chưa điền)');
+  set('sp-hv-val', hv1 ? hv1.slice(0,80)+(hv1.length>80?'...':'') : '(chưa điền)');
+  set('sp-kt-val', kt  || '(chưa điền)');
+}
+
+// Auto-update preview when user types in form fields
+['tu_km','bo','ct','hv1','kt','vp_ten'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) el.addEventListener('input', updateStampPreview);
+});
+
+function fmtDateTime(d){
+  const days=['Chủ Nhật','Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy'];
+  const pad=n=>String(n).padStart(2,'0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}  |  ${pad(d.getDate())} Tháng ${d.getMonth()+1}, ${d.getFullYear()}  |  ${days[d.getDay()]}`;
+}
+
+function stampPhoto(inp){
+  const files = Array.from(inp.files);
+  if(!files.length) return;
+  const now = new Date();
+
+  // Update time preview
+  const timeEl = document.getElementById('sp-time');
+  if(timeEl) timeEl.textContent = '⏰ ' + fmtDateTime(now);
+
+  // Get GPS then process photos
+  const processPhotos = (gpsInfo)=>{
+    files.forEach(file=>{
+      const reader = new FileReader();
+      reader.onload = e=>{
+        const img = new Image();
+        img.onload = ()=>{
+          const canvas = document.getElementById('stamp-canvas');
+          canvas.width  = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img,0,0);
+          drawWatermark(ctx, img.naturalWidth, img.naturalHeight, gpsInfo);
+          const stamped = canvas.toDataURL('image/jpeg', 0.92);
+          photos.push({id:Date.now()+'s'+Math.random().toString(36).slice(2), src:stamped, nm:'stamped_'+file.name});
+          renderPhotos();
+          showPhotoPreview(stamped);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Try GPS (3s timeout so camera doesn't feel slow)
+  const gpsEl = document.getElementById('sp-gps');
+  if(navigator.geolocation){
+    if(gpsEl) gpsEl.textContent = '📍 Đang lấy tọa độ...';
+    let done=false;
+    const timer = setTimeout(()=>{ if(!done){done=true; processPhotos({time:now});} }, 3000);
+    navigator.geolocation.getCurrentPosition(pos=>{
+      if(done) return; done=true; clearTimeout(timer);
+      const lat=pos.coords.latitude, lng=pos.coords.longitude;
+      stampGPS = {lat,lng,acc:Math.round(pos.coords.accuracy),time:now};
+      if(gpsEl) gpsEl.textContent = `📍 ${lat.toFixed(6)}, ${lng.toFixed(6)} (±${Math.round(pos.coords.accuracy)}m)`;
+      processPhotos(stampGPS);
+    }, ()=>{
+      if(done) return; done=true; clearTimeout(timer);
+      if(gpsEl) gpsEl.textContent = '📍 Không lấy được GPS — ảnh vẫn được đóng dấu thông tin khác';
+      processPhotos({time:now});
+    }, {enableHighAccuracy:true, timeout:3000, maximumAge:60000});
+  } else {
+    processPhotos({time:now});
+  }
+  inp.value='';
+}
+
+function drawWatermark(ctx, W, H, gps){
+  const scale = Math.max(W,H)/1200;
+  const fSize = Math.round(28*scale);
+  const pad   = Math.round(16*scale);
+  const lineH = Math.round(fSize*1.45);
+  const now   = gps.time || new Date();
+
+  const kCoc = v('tu_km'), bo = v('bo'), ct = v('ct'), hv1 = v('hv1');
+  const kt   = v('kt'),    ho = v('vp_ten');
+
+  const lines = [
+    fmtDateTime(now),
+    gps.lat ? `${gps.lat.toFixed(6)}, ${gps.lng.toFixed(6)}${gps.acc?' (±'+gps.acc+'m)':''}` : 'GPS: không lấy được',
+    [kCoc&&`K cọc ${kCoc}`, bo&&`Bờ ${bo}`, ct&&`Tuyến ${ct}`].filter(Boolean).join('  |  ') || '(chưa điền vị trí)',
+    ho ? `Hộ: ${ho}` : 'Hộ vi phạm: (chưa điền)',
+    hv1 ? hv1.slice(0,90)+(hv1.length>90?'...':'') : 'Hành vi: (chưa điền)',
+    kt  ? `Kích thước: ${kt.slice(0,90)}` : ''
+  ].filter(l=>l!=='');
+
+  const boxH = lines.length*lineH + pad*2;
+  const boxY = H - boxH;
+
+  // Dark background
+  ctx.fillStyle='rgba(0,0,0,0.65)';
+  ctx.fillRect(0,boxY,W,boxH);
+  // Red accent bar
+  ctx.fillStyle='#e74c3c';
+  ctx.fillRect(0,boxY,Math.round(6*scale),boxH);
+
+  ctx.textBaseline='top';
+  const lx = pad + Math.round(12*scale);
+
+  lines.forEach((line,i)=>{
+    const y = boxY + pad + i*lineH;
+    if(i===0){
+      ctx.font=`bold ${Math.round(fSize*1.2)}px Arial`;
+      ctx.fillStyle='#ffffff';       // giờ/ngày — trắng to
+    } else if(i===1){
+      ctx.font=`${fSize}px Arial`;
+      ctx.fillStyle='#7fd4ec';       // tọa độ — xanh dương
+    } else if(i===2){
+      ctx.font=`${fSize}px Arial`;
+      ctx.fillStyle='#f0e68c';       // K cọc/bờ/tuyến — vàng
+    } else if(i===3){
+      ctx.font=`${Math.round(fSize*0.9)}px Arial`;
+      ctx.fillStyle='#ffffff';       // hộ vi phạm — trắng
+    } else if(i===4){
+      ctx.font=`${Math.round(fSize*0.9)}px Arial`;
+      ctx.fillStyle='#ffaaaa';       // hành vi — đỏ nhạt
+    } else {
+      ctx.font=`${Math.round(fSize*0.85)}px Arial`;
+      ctx.fillStyle='#ffd580';       // kích thước — cam nhạt
+    }
+    ctx.fillText(line, lx, y);
+  });
+
+  // Top-right badge
+  ctx.font=`bold ${Math.round(fSize*0.75)}px Arial`;
+  const badge='  Thủy lợi Nhật Tựu ✓  ';
+  const bw=ctx.measureText(badge).width+pad;
+  ctx.fillStyle='rgba(0,0,0,0.55)';
+  ctx.fillRect(W-bw-pad,0,bw+pad,lineH*1.4);
+  ctx.fillStyle='#2ecc71';
+  ctx.fillText(badge,W-bw,Math.round(lineH*0.2));
+}
+
+// ===== PHOTO PREVIEW & SAVE =====
+let currentPreviewSrc = null;
+
+function showPhotoPreview(src){
+  currentPreviewSrc = src;
+  const modal = document.getElementById('photo-modal');
+  const img   = document.getElementById('modal-img');
+  if(modal && img){ img.src = src; modal.style.display = 'flex'; }
+}
+
+function saveToAlbum(){
+  if(!currentPreviewSrc) return;
+  const a = document.createElement('a');
+  const now = new Date();
+  const fname = `VPham_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}.jpg`;
+  a.href = currentPreviewSrc;
+  a.download = fname;
+  a.click();
+  // Show hint for iPhone (iOS doesn't support download attribute the same way)
+  if(/iPhone|iPad/.test(navigator.userAgent)){
+    alert('Trên iPhone: giữ ngón tay vào ảnh → "Lưu vào Ảnh" để lưu vào album nhé!');
+  }
+}
+
+// Close modal on backdrop tap
+document.getElementById('photo-modal')?.addEventListener('click', e=>{
+  if(e.target === document.getElementById('photo-modal'))
+    document.getElementById('photo-modal').style.display='none';
+});
+
+// ===== COLLECT =====
+function collect(){
+  return{id:cid||Date.now().toString(),so:v('so'),ngay:v('ngay'),gio:v('gio'),dd:v('dd'),
+    n1:v('n1'),cv1:v('cv1'),n2:v('n2'),cv2:v('cv2'),dv:v('dv'),
+    vp_ten:v('vp_ten'),vp_gt:v('vp_gt'),vp_qt:v('vp_qt'),vp_nn:v('vp_nn'),vp_noo:v('vp_noo'),
+    ct:v('ct'),px:v('px'),phia:v('phia'),bo:v('bo'),song:v('song'),
+    tu_km:v('tu_km'),den_km:v('den_km'),x1:v('x1'),y1:v('y1'),x2:v('x2'),y2:v('y2'),
+    hv1:v('hv1'),hv2:v('hv2'),hv3:v('hv3'),kt:v('kt'),khp:v('khp'),yk_vp:v('yk_vp'),
+    photos:photos.map(p=>({id:p.id,src:p.src,nm:p.nm})),
+    sketch:sk?sk.toDataURL('image/png'):null,
+    ts:new Date().toISOString()};
+}
+
+// ===== SAVE =====
+function save(){
+  const d=collect();
+  const i=vlist.findIndex(x=>x.id===d.id);
+  if(i>=0)vlist[i]=d;else vlist.push(d);
+  localStorage.setItem('vlist',JSON.stringify(vlist));
+  cid=d.id;renderList();alert('Đã lưu nháp!');
+}
+
+function newBB(){
+  cid=null;photos=[];
+  restoreSketch(null);
+  ['so','ngay','gio','dd','n1','cv1','n2','cv2','vp_ten','vp_noo','ct','px','phia','bo',
+   'song','tu_km','den_km','x1','y1','x2','y2','hv1','hv2','hv3','khp','yk_vp'].forEach(id=>{
+    if(g(id))g(id).value=id==='so'?'1':id==='dv'?'Xí nghiệp Thủy lợi Nhật Tựu':
+      id==='vp_qt'?'Việt Nam':id==='ngay'?new Date().toISOString().slice(0,10):'';
+  });
+  renderPhotos();
+  document.querySelectorAll('.tab')[0].click();
+}
+
+// ===== LIST =====
+function fd(s){if(!s)return'';const p=s.split('-');return`${p[2]}/${p[1]}/${p[0]}`;}
+function renderList(){
+  const el=g('vlist');
+  if(!vlist.length){el.innerHTML='<div style="text-align:center;padding:40px;color:#999;font-size:13px;">Chưa có biên bản nào.</div>';return;}
+  el.innerHTML=vlist.map(d=>`
+    <div class="vp">
+      <div class="vp-h">⚠️ BB lần ${d.so||1} — ${d.vp_ten||'(chưa có tên)'}
+        <span style="margin-left:auto;background:#eaf2ff;color:#1a5276;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:600;white-space:nowrap;">${d.ts?new Date(d.ts).toLocaleDateString('vi-VN'):''}</span>
+      </div>
+      <div class="vp-b">
+        <div class="r"><span class="l">Ngày lập:</span><span class="v">${fd(d.ngay)} ${d.gio||''}</span></div>
+        <div class="r"><span class="l">Công trình:</span><span class="v">${d.ct||'—'}</span></div>
+        <div class="r"><span class="l">Vị trí:</span><span class="v">${d.tu_km||'—'} bờ ${d.bo||'—'} sông ${d.song||'—'}</span></div>
+        <div class="r"><span class="l">Ảnh:</span><span class="v">${d.photos?.length||0} ảnh</span></div>
+      </div>
+      <div class="vp-acts">
+        <button class="vbtn e" onclick="loadBB('${d.id}')">✏️ Sửa</button>
+        <button class="vbtn p" onclick="printById('${d.id}')">🖨 Xuất PDF</button>
+        <button class="vbtn d" onclick="delBB('${d.id}')">🗑 Xóa</button>
+      </div>
+    </div>`).join('');
+}
+
+function loadBB(id){
+  const d=vlist.find(x=>x.id===id);if(!d)return;
+  cid=id;
+  const map={'so':'so','ngay':'ngay','gio':'gio','dd':'dd','n1':'n1','cv1':'cv1',
+    'n2':'n2','cv2':'cv2','dv':'dv','vp_ten':'vp_ten','vp_gt':'vp_gt',
+    'vp_qt':'vp_qt','vp_nn':'vp_nn','vp_noo':'vp_noo','ct':'ct','px':'px',
+    'phia':'phia','bo':'bo','song':'song','tu_km':'tu_km','den_km':'den_km',
+    'x1':'x1','y1':'y1','x2':'x2','y2':'y2','hv1':'hv1','hv2':'hv2',
+    'hv3':'hv3','kt':'kt','khp':'khp','yk_vp':'yk_vp'};
+  Object.entries(map).forEach(([k,el])=>{if(g(el)&&d[k]!==undefined)g(el).value=d[k];});
+  photos=d.photos||[];renderPhotos();
+  restoreSketch(d.sketch);
+  document.querySelectorAll('.tab')[0].click();
+}
+
+// Restore a saved sketch (data URL) onto the canvas, or clear it if none.
+// Used both when loading a saved draft and when starting a brand-new one —
+// previously the canvas was never reset, so sketches could leak between
+// different biên bản (drawing from case #1 silently reused/overwritten on case #2).
+function restoreSketch(dataUrl){
+  skHist=[];
+  skCtx.fillStyle='#fff';skCtx.fillRect(0,0,sk.width,sk.height);
+  if(!dataUrl) return;
+  const img=new Image();
+  img.onload=()=>{ skCtx.drawImage(img,0,0,sk.width,sk.height); };
+  img.src=dataUrl;
+}
+
+function delBB(id){
+  if(!confirm('Xóa biên bản này?'))return;
+  vlist=vlist.filter(x=>x.id!==id);
+  localStorage.setItem('vlist',JSON.stringify(vlist));renderList();
+}
+
+// ===== PRINT / PDF =====
+function printById(id){const d=vlist.find(x=>x.id===id);if(d)exportRealPdf(d);}
+function printPDF(){exportRealPdf(collect());}
+
+// Builds the same standalone 4-page A4 document (Biên bản / Sơ họa / Ảnh / Phiếu giao nhận)
+// used both for the real-PDF export (html2canvas+jsPDF) and the browser-print fallback.
+function buildPrintHtml(d){
+  const fd2=s=>{if(!s)return'...';const p=s.split('-');return`${p[2]}/${p[1]}/${p[0]}`;};
+  const yn=s=>s?new Date(s).getFullYear():'....';
+  const mm=s=>s?new Date(s).getMonth()+1:'..';
+  const dd2=s=>s?new Date(s).getDate():'...';
+  const nl=s=>(s||'').replace(/\n/g,'<br>');
+  const dot=s=>s||'................................';
+
+  const phHtml=d.photos&&d.photos.length
+    ? d.photos.map(p=>`<img src="${p.src}" style="max-width:48%;margin:4px;border:1px solid #ccc;">`).join('')
+    : '<i>(Không có ảnh đính kèm)</i>';
+
+  const skHtml=d.sketch
+    ? `<img src="${d.sketch}" style="width:100%;border:1px solid #000;max-height:350px;object-fit:contain;">`
+    : '<div style="border:1px solid #000;height:250px;"></div>';
+
+  return `
+<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"/>
+<style>
+body{font-family:'Times New Roman',serif;font-size:11pt;color:#000;margin:0;padding:0;}
+.page{width:210mm;min-height:297mm;margin:0 auto;padding:15mm;box-sizing:border-box;}
+@media print{.page{margin:0;padding:15mm;}@page{size:A4;margin:0;}}
+h2{text-align:center;font-size:13pt;text-transform:uppercase;margin:6px 0;}
+h3{text-align:center;font-size:11pt;text-decoration:underline;margin:4px 0;}
+.center{text-align:center;}
+.bold{font-weight:bold;}
+.line{border-bottom:1px solid #000;margin:2px 0 6px;}
+.dotline{border-bottom:1px dotted #ccc;padding-bottom:1px;min-height:16px;display:inline-block;width:100%;}
+table{width:100%;border-collapse:collapse;margin:8px 0;}
+td,th{border:1px solid #000;padding:4px 6px;font-size:10.5pt;}
+th{background:#f0f0f0;font-weight:bold;text-align:center;}
+.pb{page-break-before:always;}
+.sig{display:flex;justify-content:space-between;margin-top:20px;}
+.sig-box{text-align:center;width:45%;}
+</style></head><body>
+
+<!-- ====== TRANG 1: BIÊN BẢN LÀM VIỆC ====== -->
+<div class="page">
+<div style="display:flex;justify-content:space-between;font-size:9pt;margin-bottom:8px;">
+  <div style="text-align:center;width:45%;font-weight:bold;font-size:9pt;">
+    CÔNG TY TNHH MỘT THÀNH VIÊN<br>ĐẦU TƯ PHÁT TRIỂN THUỶ LỢI SÔNG NHUỆ<br>
+    <b>XÍ NGHIỆP THUỶ LỢI NHẬT TỰU</b>
+  </div>
+  <div style="text-align:center;width:50%;">
+    CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM<br>
+    <b><u>Độc lập - Tự do - Hạnh phúc</u></b><br>
+    <i>Ninh Bình, ngày ${dd2(d.ngay)} tháng ${mm(d.ngay)} năm ${yn(d.ngay)}</i>
+  </div>
+</div>
+<h2>Biên bản làm việc</h2>
+<h3>(lần ${d.so||1}....)</h3>
+<p style="margin:8px 0;">Hôm nay, vào hồi ${d.gio||'...'} giờ ..... phút, ngày ${fd2(d.ngay)},
+tại ${dot(d.dd)}, Phường ${dot(d.px)}, Tỉnh Ninh Bình.</p>
+<p class="bold">Chúng tôi gồm:</p>
+<p class="bold" style="margin-top:6px;">1. Người có thẩm quyền lập biên bản:</p>
+<p>- Họ và tên ${dot(d.n1)}&nbsp;&nbsp;&nbsp; Chức vụ ${dot(d.cv1)}</p>
+<p>- Họ và tên ${dot(d.n2)}&nbsp;&nbsp;&nbsp; Chức vụ ${dot(d.cv2)}</p>
+<p>Đơn vị công tác: ${d.dv||'Xí nghiệp Thủy lợi Nhật Tựu'}</p>
+<p class="bold" style="margin-top:6px;">3. Chủ thể vi phạm:</p>
+<p>a) Người vi phạm:</p>
+<p>- Họ và tên ${dot(d.vp_ten)}&nbsp;&nbsp; Giới tính: ${d.vp_gt||'Nữ'}</p>
+<p>- Quốc tịch: ${dot(d.vp_qt)}&nbsp;&nbsp; Nghề nghiệp: ${dot(d.vp_nn)}</p>
+<p>- Nơi ở hiện tại: ${dot(d.vp_noo)}</p>
+
+<p class="bold" style="margin-top:10px;">Tiến hành lập biên bản làm việc đối với chủ thể vi phạm nêu trên đã có hành vi vi phạm trong phạm vi bảo vệ công trình thủy lợi:</p>
+<p class="bold" style="margin-top:6px;">1. Thời gian:</p>
+<p>- Phát sinh vi phạm: ${fd2(d.ngay)} / ${yn(d.ngay)}</p>
+<p>- Phát hiện hành vi vi phạm: ${fd2(d.ngay)} / ${yn(d.ngay)}</p>
+<p class="bold" style="margin-top:6px;">2. Địa điểm, vị trí phát sinh hành vi vi phạm:</p>
+<p>- Tên công trình: ${dot(d.ct)}, Thuộc địa bàn: ${dot(d.dd)}, Phường ${dot(d.px)}, Tỉnh Ninh Bình.</p>
+<p>- Phạm vi: Phía ${dot(d.phia)}, Bờ ${dot(d.bo)} Sông ${dot(d.song)}</p>
+<p>- Từ Km ${dot(d.tu_km)}, đến Km ${dot(d.den_km)}</p>
+<p>- Tọa độ Gmaps điểm đầu: X = ${dot(d.x1)}, Y = ${dot(d.y1)}</p>
+${d.x2?`<p>- Tọa độ Gmaps điểm cuối: X = ${d.x2}, Y = ${d.y2||'...'}</p>`:''}
+<p class="bold" style="margin-top:6px;">3. Mô tả các hành vi vi phạm:</p>
+${d.hv1?`<p>a) Hành vi 1: ${nl(d.hv1)}</p>`:'<p>a) Hành vi 1: ................................................................................................</p>'}
+${d.kt?`<p style="margin-left:16px;">- Kích thước vi phạm: ${nl(d.kt)}</p>`:''}
+${d.hv2?`<p>b) Hành vi 2: ${nl(d.hv2)}</p>`:''}
+${d.hv3?`<p>c) Hành vi 3: ${nl(d.hv3)}</p>`:''}
+${d.khp?`<p style="margin-top:6px;">- Yêu cầu khắc phục trước ngày ${fd2(d.khp)}.</p>`:''}
+<p style="margin-top:6px;">4. Ý kiến của người vi phạm: ${nl(d.yk_vp)||'.....................................................................'}</p>
+<p>6. Các biện pháp xử lý: Yêu cầu chủ thể vi phạm dừng hành vi vi phạm, tự thực hiện biện pháp khắc phục hậu quả, khôi phục tình trạng ban đầu của công trình thủy lợi trước khi phát sinh hành vi vi phạm trước ngày ${d.khp?fd2(d.khp):'...'} tháng ${d.khp?mm(d.khp):'...'} năm ${d.khp?yn(d.khp):'....'} và không được tái vi phạm.</p>
+<p>Biên bản lập xong hồi ${d.gio||'...'} giờ ..... phút cùng ngày, gồm 03 trang, được lập thành 03 bản có nội dung và giá trị như nhau.</p>
+<p>Lý do người vi phạm/đại diện tổ chức vi phạm không ký biên bản: ...................</p>
+<div class="sig">
+  <div class="sig-box">
+    <b>NGƯỜI CHỨNG KIẾN</b><br><i>(Ký, ghi rõ họ tên)</i>
+    <div style="height:50px;"></div>
+  </div>
+  <div class="sig-box">
+    <b>NGƯỜI LẬP BIÊN BẢN</b><br><i>(Ký, ghi rõ họ tên, chức vụ)</i>
+    <div style="height:50px;"></div>
+    ${dot(d.n1)}
+  </div>
+</div>
+<div style="text-align:center;margin-top:14px;">
+  <b>NGƯỜI VI PHẠM / ĐẠI DIỆN TỔ CHỨC VI PHẠM</b><br>
+  <i>(Ký, ghi rõ họ tên)</i>
+  <div style="height:50px;"></div>
+  ${dot(d.vp_ten)}
+</div>
+</div>
+
+<!-- ====== TRANG 2: SƠ HỌA MẶT BẰNG ====== -->
+<div class="page pb">
+<h2>Sơ họa mặt bằng hiện trạng vi phạm</h2>
+<p class="center"><i>(Kèm theo Biên bản làm việc ngày ${dd2(d.ngay)} tháng ${mm(d.ngay)} năm ${yn(d.ngay)})</i></p>
+<p style="margin-top:10px;">- Họ và tên chủ hộ Ông (bà): ${dot(d.vp_ten)}</p>
+<p>- Địa điểm vi phạm: ${dot(d.dd)}, Phường ${dot(d.px)}, Tỉnh Ninh Bình.</p>
+<p>- Vị trí: ${dot(d.phia)}, K.${dot(d.tu_km)}, Bờ ${dot(d.bo)} Sông: ${dot(d.song)}</p>
+<div style="border:1px solid #000;padding:10px;margin:12px 0;min-height:280px;">
+  ${skHtml}
+</div>
+<p><b>Tọa độ:</b></p>
+<p>(1): X = ${dot(d.x1)}, Y = ${dot(d.y1)}</p>
+<p>(2): X = ${dot(d.x2)}, Y = ${dot(d.y2)}</p>
+<div style="text-align:right;margin-top:14px;">
+  <i>Ngày ${dd2(d.ngay)} tháng ${mm(d.ngay)} năm ${yn(d.ngay)}</i><br>
+  <b>Người vẽ sơ họa</b><br>
+  <div style="height:40px;"></div>
+  ${dot(d.n1)}
+</div>
+</div>
+
+<!-- ====== TRANG 3: ẢNH + PHIẾU GIAO NHẬN ====== -->
+<div class="page pb">
+<h2>Ảnh chụp hiện trạng vi phạm</h2>
+<p class="center"><i>(Kèm theo Biên bản làm việc ngày ${dd2(d.ngay)} tháng ${mm(d.ngay)} năm ${yn(d.ngay)})</i></p>
+<div style="margin-top:12px;">${phHtml}</div>
+</div>
+
+<div class="page pb">
+<div style="display:flex;justify-content:space-between;font-size:9pt;margin-bottom:8px;">
+  <div style="text-align:center;width:45%;font-weight:bold;font-size:9pt;">
+    CÔNG TY TNHH MỘT THÀNH VIÊN<br>ĐẦU TƯ PHÁT TRIỂN THUỶ LỢI SÔNG NHUỆ<br>
+    <b>XÍ NGHIỆP THUỶ LỢI NHẬT TỰU</b>
+  </div>
+  <div style="text-align:center;width:50%;">
+    CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM<br>
+    <b><u>Độc lập - Tự do - Hạnh phúc</u></b><br>
+    <i>Ninh Bình, ngày ${dd2(d.ngay)} tháng ${mm(d.ngay)} năm ${yn(d.ngay)}</i>
+  </div>
+</div>
+<h2>Phiếu giao nhận</h2>
+<h3>Hồ sơ vụ việc vi phạm trong phạm vi bảo vệ công trình thủy lợi</h3>
+<p style="margin-top:10px;text-align:justify;">Xí nghiệp Thuỷ lợi Nhật Tựu bàn giao hồ sơ vụ việc vi phạm trong phạm vi bảo vệ công trình thủy lợi, lập ngày ${dd2(d.ngay)} tháng ${mm(d.ngay)} năm ${yn(d.ngay)} đối với chủ thể vi phạm <b>${dot(d.vp_ten)}</b> xây tại công trình thủy lợi <b>${dot(d.ct)}</b> trên địa bàn cho UBND xã/phường ${dot(d.px)}.</p>
+<p style="margin-top:8px;"><b>1. Người giao:</b></p>
+<p>- Họ và tên ${dot(d.n1)}&nbsp;&nbsp; Chức vụ ${dot(d.cv1)}</p>
+<p><b>2. Người nhận:</b></p>
+<p>- Họ và tên ..................................&nbsp;&nbsp; Chức vụ ..................................</p>
+<p style="margin-top:8px;">Hai bên bàn giao, tiếp nhận hồ sơ vụ việc vi phạm bao gồm:</p>
+<table>
+<tr><th>TT</th><th>Danh mục</th><th>Số lượng</th></tr>
+<tr><td style="text-align:center;">1</td><td>Biên bản làm việc</td><td style="text-align:center;">01</td></tr>
+<tr><td style="text-align:center;">2</td><td>Bản vẽ sơ họa hiện trạng vi phạm</td><td style="text-align:center;">01</td></tr>
+<tr><td style="text-align:center;">3</td><td>Ảnh chụp hiện trạng vi phạm</td><td style="text-align:center;">${d.photos?.length||'01'}</td></tr>
+<tr><td style="text-align:center;">4</td><td>Giấy tờ xác thực chủ thể vi phạm</td><td style="text-align:center;">.....</td></tr>
+<tr><td style="text-align:center;">5</td><td>Giấy tờ khác: .............................</td><td style="text-align:center;">.....</td></tr>
+</table>
+<p>Hai bên bàn giao, nhận hồ sơ vụ việc xong hồi ${d.gio||'...'} giờ ..... ngày ${dd2(d.ngay)} tháng ${mm(d.ngay)} năm ${yn(d.ngay)}.</p>
+<div class="sig" style="margin-top:30px;">
+  <div class="sig-box">
+    <b>NGƯỜI NHẬN HỒ SƠ</b><br><i>(Ký, họ tên)</i>
+    <div style="height:50px;"></div>
+  </div>
+  <div class="sig-box">
+    <b>NGƯỜI GIAO HỒ SƠ</b><br><i>(Ký, họ tên)</i>
+    <div style="height:50px;"></div>
+    ${d.n1||''}
+  </div>
+</div>
+</div>
+
+</body></html>`;
+}
+
+// ===== FALLBACK: preview + browser print (used only if jsPDF/html2canvas fail to load, e.g. offline) =====
+function previewPrint(d){
+  const html = buildPrintHtml(d);
+  // Dùng hidden iframe thay vì window.open — hoạt động trên iPhone Safari
+  let frame = document.getElementById('print-frame');
+  if(frame) frame.remove();
+  frame = document.createElement('iframe');
+  frame.id = 'print-frame';
+  frame.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9999;background:#fff;';
+  document.body.appendChild(frame);
+
+  frame.onload = ()=>{
+    // Nút đóng để thoát preview
+    const closeBtn = frame.contentDocument.createElement('div');
+    closeBtn.innerHTML = `
+      <div style="position:fixed;top:0;left:0;right:0;background:#1a5276;color:#fff;
+        padding:12px 16px;display:flex;align-items:center;gap:10px;z-index:99999;
+        font-family:sans-serif;">
+        <button onclick="window.parent.document.getElementById('print-frame').remove()"
+          style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);
+          color:#fff;padding:8px 14px;border-radius:6px;font-size:14px;cursor:pointer;">
+          ✕ Đóng
+        </button>
+        <span style="flex:1;font-size:14px;font-weight:700;">Biên bản vi phạm — ${d.vp_ten||''}</span>
+        <button onclick="window.print()"
+          style="background:#e74c3c;border:none;color:#fff;padding:8px 16px;
+          border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">
+          🖨 In / Lưu PDF
+        </button>
+      </div>
+      <div style="height:52px;"></div>`;
+    frame.contentDocument.body.insertBefore(closeBtn, frame.contentDocument.body.firstChild);
+    // Hướng dẫn lưu PDF trên iPhone
+    if(/iPhone|iPad/i.test(navigator.userAgent)){
+      const hint = frame.contentDocument.createElement('div');
+      hint.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1a5276;color:#fff;padding:10px 14px;font-size:12px;font-family:sans-serif;z-index:99999;';
+      hint.innerHTML = '📱 iPhone: Bấm <b>🖨 In / Lưu PDF</b> → Chọn <b>"Save to Files"</b> để lưu PDF về máy';
+      frame.contentDocument.body.appendChild(hint);
+    }
+  };
+
+  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  frame.src = URL.createObjectURL(blob);
+}
+
+// ===== REAL PDF EXPORT (jsPDF + html2canvas) — no browser print dialog needed =====
+let pdfBusy = false;
+
+function showPdfBusy(msg){
+  let el = document.getElementById('pdf-busy-overlay');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'pdf-busy-overlay';
+    el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;'+
+      'display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:sans-serif;';
+    el.innerHTML = `<div style="width:34px;height:34px;border:3px solid rgba(255,255,255,.3);
+      border-top-color:#fff;border-radius:50%;animation:pdfspin 0.8s linear infinite;margin-bottom:14px;"></div>
+      <div id="pdf-busy-text" style="font-size:14px;"></div>
+      <style>@keyframes pdfspin{to{transform:rotate(360deg)}}</style>`;
+    document.body.appendChild(el);
+  }
+  document.getElementById('pdf-busy-text').textContent = msg;
+  el.style.display = 'flex';
+}
+function hidePdfBusy(){
+  const el = document.getElementById('pdf-busy-overlay');
+  if(el) el.style.display = 'none';
+}
+
+async function exportRealPdf(d){
+  if(pdfBusy) return;
+  if(!window.jspdf || !window.html2canvas){
+    // Libraries didn't load (e.g. no internet) — fall back to browser print, which
+    // needs no external library since it only relies on the page's own CSS.
+    alert('Không tải được thư viện xuất PDF (cần có mạng lần đầu). Sẽ mở bản xem trước để in/lưu PDF qua trình duyệt thay thế.');
+    previewPrint(d);
+    return;
+  }
+  pdfBusy = true;
+  showPdfBusy('Đang dựng nội dung biên bản…');
+
+  // Render the print-ready HTML inside a hidden iframe sized like an A4 page at 96dpi,
+  // so html2canvas captures it exactly as it will look on paper.
+  const html = buildPrintHtml(d);
+  let frame = document.getElementById('pdf-render-frame');
+  if(frame) frame.remove();
+  frame = document.createElement('iframe');
+  frame.id = 'pdf-render-frame';
+  frame.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;height:1123px;border:none;';
+  document.body.appendChild(frame);
+
+  try{
+    await new Promise((resolve,reject)=>{
+      frame.onload = resolve;
+      frame.onerror = reject;
+      frame.src = URL.createObjectURL(new Blob([html], {type:'text/html;charset=utf-8'}));
+      setTimeout(reject, 15000, new Error('Quá thời gian dựng nội dung'));
+    });
+    // Wait for every image inside (photos + sketch) to actually finish loading
+    const imgs = Array.from(frame.contentDocument.images);
+    await Promise.all(imgs.map(img=> img.complete ? Promise.resolve() :
+      new Promise(res=>{ img.onload=res; img.onerror=res; })));
+
+    showPdfBusy('Đang chụp từng trang…');
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit:'mm', format:'a4', compress:true });
+    const pageEls = Array.from(frame.contentDocument.querySelectorAll('.page'));
+    const PAGE_W = 210, PAGE_H = 297;
+
+    for(let i=0;i<pageEls.length;i++){
+      showPdfBusy(`Đang chụp trang ${i+1}/${pageEls.length}…`);
+      const canvas = await html2canvas(pageEls[i], { scale:2, useCORS:true, backgroundColor:'#ffffff' });
+      const fullHmm = canvas.height / canvas.width * PAGE_W;
+      if(i>0) pdf.addPage();
+
+      if(fullHmm <= PAGE_H + 2){
+        pdf.addImage(canvas.toDataURL('image/jpeg',0.92), 'JPEG', 0, 0, PAGE_W, fullHmm);
+      } else {
+        // Content taller than one A4 page (e.g. many photos) — slice into several
+        // continuation pages instead of squashing everything onto a single page.
+        let renderedMm = 0, first = true;
+        while(renderedMm < fullHmm - 0.5){
+          const sliceHmm = Math.min(PAGE_H, fullHmm - renderedMm);
+          const sliceStartPx = Math.round(renderedMm / fullHmm * canvas.height);
+          const sliceHeightPx = Math.max(1, Math.round(sliceHmm / fullHmm * canvas.height));
+          const sliceCanvas = document.createElement('canvas');
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = sliceHeightPx;
+          const ctx = sliceCanvas.getContext('2d');
+          ctx.fillStyle = '#fff'; ctx.fillRect(0,0,sliceCanvas.width,sliceCanvas.height);
+          ctx.drawImage(canvas, 0, sliceStartPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+          if(!first) pdf.addPage();
+          pdf.addImage(sliceCanvas.toDataURL('image/jpeg',0.92), 'JPEG', 0, 0, PAGE_W, sliceHmm);
+          renderedMm += sliceHmm;
+          first = false;
+        }
+      }
+    }
+
+    const safeName = (d.vp_ten||'vuviec').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'_');
+    const dateStr = (d.ngay||'').replace(/-/g,'') || new Date().toISOString().slice(0,10).replace(/-/g,'');
+    pdf.save(`BienBan_${safeName}_${dateStr}.pdf`);
+  }catch(err){
+    console.error(err);
+    alert('Xuất PDF thất bại: '+err.message+'. Sẽ mở bản xem trước để in/lưu PDF qua trình duyệt thay thế.');
+    previewPrint(d);
+  }finally{
+    frame.remove();
+    hidePdfBusy();
+    pdfBusy = false;
+  }
+}
+</script>
+</body>
+</html>

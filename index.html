@@ -1,0 +1,2579 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Thủy lợi NT"/>
+<meta name="theme-color" content="#1a3a52"/>
+<link rel="manifest" href="manifest.json"/>
+<script>
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+
+// PWA install prompt
+let pwaPrompt = null;
+window.addEventListener('beforeinstallprompt', e=>{
+  e.preventDefault();
+  pwaPrompt = e;
+  // Show Android install button
+  const banner = document.getElementById('pwa-banner');
+  const androidBtn = document.getElementById('pwa-android-btn');
+  if(banner) banner.style.display = 'block';
+  if(androidBtn) androidBtn.style.display = 'block';
+});
+function installPWA(){
+  if(pwaPrompt){ pwaPrompt.prompt(); pwaPrompt.userChoice.then(()=>{ pwaPrompt=null; const b=document.getElementById('pwa-banner'); if(b)b.style.display='none'; }); }
+}
+// Show iOS hint on iPhone/iPad
+window.addEventListener('DOMContentLoaded',()=>{
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if(isIOS && !isStandalone){
+    const banner = document.getElementById('pwa-banner');
+    const iosHint = document.getElementById('pwa-ios-hint');
+    if(banner) banner.style.display = 'block';
+    if(iosHint) iosHint.style.display = 'block';
+  }
+});
+</script>
+<title>Bản đồ Công trình Thủy lợi</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<style>
+  :root{
+    --bg-0:#0b1116;
+    --bg-1:#121a21;
+    --bg-2:#182530;
+    --line:#27343f;
+    --text-0:#e7eef2;
+    --text-1:#9fb0bc;
+    --text-2:#6b7c87;
+    --accent:#3fb6a8;
+    --accent-soft:#3fb6a822;
+    --warn:#e0a23a;
+    --canal:#4fb6e8;
+    --gate:#e0a23a;
+    --station:#e85d75;
+    --mono: "JetBrains Mono","SFMono-Regular",Consolas,monospace;
+    --sans: "Inter","Segoe UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg-0);color:var(--text-0);font-family:var(--sans);}
+  #app{display:flex;height:100vh;width:100vw;overflow:hidden;position:relative;}
+
+  /* ---------- mobile drawer controls (hidden on desktop) ---------- */
+  .menu-toggle-btn{
+    display:none;
+    position:absolute;top:12px;left:12px;z-index:1200;
+    width:38px;height:38px;border-radius:8px;
+    background:var(--bg-1);border:1px solid var(--line);
+    color:var(--text-0);font-size:18px;
+    align-items:center;justify-content:center;cursor:pointer;
+    box-shadow:0 2px 8px rgba(0,0,0,.45);
+  }
+  .sidebar-close-btn{
+    display:none;
+    width:30px;height:30px;border-radius:6px;
+    background:var(--bg-2);border:1px solid var(--line);
+    color:var(--text-1);font-size:16px;
+    align-items:center;justify-content:center;cursor:pointer;
+    margin-left:auto;
+  }
+  .drawer-backdrop{
+    display:none;
+    position:fixed;inset:0;background:rgba(0,0,0,.5);
+    z-index:1090;
+  }
+
+  /* ---------- sidebar ---------- */
+  #sidebar{
+    width:380px;min-width:380px;
+    background:var(--bg-1);
+    border-right:1px solid var(--line);
+    display:flex;flex-direction:column;
+    overflow:hidden;
+  }
+  .brand{
+    padding:16px 18px 12px;
+    border-bottom:1px solid var(--line);
+  }
+  .brand .eyebrow{
+    font-family:var(--mono);font-size:10px;letter-spacing:.12em;
+    color:var(--accent);text-transform:uppercase;
+  }
+  .brand h1{font-size:15px;margin:4px 0 0;font-weight:600;color:var(--text-0);}
+  .brand p{margin:4px 0 0;font-size:11.5px;color:var(--text-2);}
+
+  .section{
+    padding:14px 18px;
+    border-bottom:1px solid var(--line);
+  }
+  .section-title{
+    font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+    color:var(--text-2);text-transform:uppercase;margin:0 0 10px;
+  }
+
+  .upload-row{display:flex;flex-direction:column;gap:8px;margin-bottom:8px;}
+  .upload-row-pair{display:flex;gap:8px;margin-bottom:4px;}
+  .upload-row-pair .upload-btn{flex:1;min-width:0;}
+  .upload-row-pair .upload-btn span:not(.ic){overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .upload-btn{
+    display:flex;align-items:center;gap:8px;
+    background:var(--bg-2);border:1px solid var(--line);
+    color:var(--text-0);font-size:12.5px;
+    padding:8px 10px;border-radius:6px;cursor:pointer;
+    transition:border-color .15s;
+  }
+  .upload-btn:hover{border-color:var(--accent);}
+  .upload-btn input{display:none;}
+  .upload-btn .ic{color:var(--accent);font-family:var(--mono);font-size:12px;}
+  .status-line{font-size:11px;color:var(--text-2);margin-top:2px;line-height:1.5;}
+  .status-line.ok{color:var(--accent);}
+  .status-line.err{color:#e8636b;}
+
+  .share-link-tool{ margin-top:10px; border-top:1px solid var(--line); padding-top:10px; }
+  .share-link-tool summary{
+    cursor:pointer; font-size:11.5px; color:var(--text-1);
+    list-style:none; user-select:none;
+  }
+  .share-link-tool summary::-webkit-details-marker{ display:none; }
+  .share-link-body{ margin-top:8px; }
+  .share-link-hint{ font-size:10.5px; color:var(--text-2); line-height:1.55; margin:0 0 8px; }
+
+  #search-input{
+    width:100%;background:var(--bg-2);border:1px solid var(--line);
+    color:var(--text-0);padding:8px 10px;border-radius:6px;
+    font-size:12.5px;font-family:var(--sans);outline:none;
+  }
+  #search-input:focus{border-color:var(--accent);}
+  #search-results{margin-top:8px;max-height:160px;overflow-y:auto;}
+  .result-item{
+    display:flex;align-items:center;gap:8px;
+    padding:6px 8px;border-radius:5px;cursor:pointer;font-size:12px;
+  }
+  .result-item:hover{background:var(--bg-2);}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none;}
+  .result-item .nm{color:var(--text-0);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .result-item .ty{font-family:var(--mono);font-size:9.5px;color:var(--text-2);}
+
+  /* ---------- legend tree (Google-Earth-style Places panel) ---------- */
+  .legend-section{ max-height:280px; overflow-y:auto; }
+  #legend-tree{ font-size:12.5px; }
+  .tree-node{ user-select:none; }
+  .tree-row{
+    display:flex; align-items:center; gap:8px;
+    padding:9px 4px; border-radius:6px; cursor:pointer;
+    min-height:44px; /* iOS minimum touch target */
+  }
+  .tree-row:hover{ background:var(--bg-2); }
+  .tree-row:active{ background:var(--line); }
+  .tree-children{ margin-left:18px; border-left:1px dashed var(--line); padding-left:10px; }
+  .tree-expand-btn{
+    width:28px; height:28px; flex:none; border:none; background:transparent;
+    color:var(--text-2); font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    transition:transform .15s; border-radius:4px;
+  }
+  .tree-expand-btn:hover{ background:var(--bg-2); }
+  .tree-expand-btn.collapsed{ transform:rotate(-90deg); }
+  .tree-expand-spacer{ width:28px; flex:none; }
+  .tree-row input[type="checkbox"]{ accent-color:var(--accent); flex:none; cursor:pointer; width:18px; height:18px; }
+  .tree-row .swatch{ width:11px; height:11px; border-radius:2px; flex:none; }
+  .tree-row .swatch.dot-shape{ border-radius:50%; }
+  .tree-row .tree-label{
+    flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    color:var(--text-1); cursor:pointer; font-size:13px; line-height:1.4;
+  }
+  .tree-row.is-folder .tree-label{ color:var(--text-0); font-weight:600; }
+  .tree-row.is-hidden .tree-label{ color:var(--text-2); text-decoration:line-through; opacity:.7; }
+  .tree-children.collapsed{ display:none; }
+  .tree-delete-btn{
+    margin-left:auto; flex:none;
+    width:28px; height:28px; border-radius:4px;
+    background:transparent; border:none;
+    color:var(--text-2); font-size:13px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; transition:opacity .15s, color .15s;
+  }
+  .tree-row:hover .tree-delete-btn{ opacity:1; }
+  .tree-row:active .tree-delete-btn{ opacity:1; }
+  .tree-delete-btn:hover{ color:#e8636b; background:#e8636b22; }
+
+  .measure-row{display:flex;gap:8px;margin-bottom:8px;}
+  .measure-btn{
+    flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+    background:var(--bg-2);border:1px solid var(--line);
+    color:var(--text-1);font-size:11.5px;
+    padding:9px 6px;border-radius:6px;cursor:pointer;
+    transition:border-color .15s, color .15s, background .15s;
+  }
+  .measure-btn .ic{font-family:var(--mono);font-size:13px;color:var(--text-2);}
+  .measure-btn:hover{border-color:var(--accent);color:var(--text-0);}
+  .measure-btn.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+  .measure-btn.active .ic{color:var(--accent);}
+  .measure-result{
+    margin-top:8px;padding:10px;border-radius:6px;
+    background:var(--bg-2);border:1px solid var(--line);
+    font-family:var(--mono);font-size:13px;color:var(--text-0);
+  }
+  .measure-result .mr-label{font-family:var(--sans);font-size:10.5px;color:var(--text-2);margin-bottom:3px;}
+  .measure-clear{
+    margin-top:8px;width:100%;background:transparent;border:1px dashed var(--line);
+    color:var(--text-2);font-size:11px;padding:6px;border-radius:5px;cursor:pointer;
+  }
+  .measure-clear:hover{color:var(--text-1);border-color:var(--text-2);}
+
+  .timemark-btn{
+    display:flex; align-items:center; gap:10px;
+    background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border:1px solid #3fb6a855;
+    color:var(--text-0); font-size:13px; font-weight:600;
+    padding:12px 14px; border-radius:8px; cursor:pointer;
+    text-decoration:none; width:100%;
+    transition:border-color .15s, background .15s;
+  }
+  .timemark-btn:hover{ border-color:var(--accent); background:linear-gradient(135deg, #1e2840 0%, #1a2d4a 100%); }
+  .timemark-btn .ic{ font-size:20px; }
+
+  /* ---------- draw tools ---------- */
+  .draw-actions{ display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+  .draw-export-btn{
+    width:100%; padding:9px; border-radius:6px; cursor:pointer;
+    background:var(--accent-soft); border:1px solid #3fb6a855;
+    color:var(--accent); font-weight:600; font-size:12.5px;
+  }
+  .draw-export-btn:hover{ background:#3fb6a833; }
+  .drawn-item{
+    display:flex; align-items:center; gap:7px;
+    padding:6px 4px; border-bottom:1px dashed var(--line);
+    font-size:12px; color:var(--text-1);
+  }
+  .drawn-item .di-swatch{ width:10px; height:10px; border-radius:2px; flex:none; }
+  .drawn-item .di-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .drawn-item .di-del{
+    background:transparent; border:none; color:var(--text-2);
+    cursor:pointer; font-size:13px; padding:0 2px; flex:none;
+  }
+  .drawn-item .di-del:hover{ color:#e8636b; }
+
+  /* Feature info form (modal overlay on map) */
+  #draw-form-overlay{
+    display:none; position:absolute; bottom:24px; left:50%; transform:translateX(-50%);
+    width:min(420px, calc(100vw - 32px));
+    background:var(--bg-1); border:1px solid var(--line);
+    border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,.55);
+    z-index:1200; padding:20px 22px; font-size:13px;
+  }
+  #draw-form-overlay.open{ display:block; }
+  #draw-form-overlay h3{ margin:0 0 14px; font-size:15px; color:var(--text-0); }
+  .dff-row{ margin-bottom:10px; }
+  .dff-row label{ display:block; font-size:11px; color:var(--text-2); margin-bottom:4px; }
+  .dff-row input[type="text"], .dff-row select, .dff-row textarea{
+    width:100%; background:var(--bg-2); border:1px solid var(--line);
+    color:var(--text-0); padding:8px 10px; border-radius:6px;
+    font-size:12.5px; font-family:var(--sans); outline:none;
+  }
+  .dff-row input[type="text"]:focus, .dff-row select:focus, .dff-row textarea:focus{
+    border-color:var(--accent);
+  }
+  .dff-row textarea{ height:60px; resize:vertical; }
+  .dff-color-row{ display:flex; align-items:center; gap:10px; }
+  .dff-color-row input[type="color"]{
+    width:36px; height:36px; border:1px solid var(--line); border-radius:5px;
+    background:transparent; cursor:pointer; padding:2px;
+  }
+  .dff-color-presets{ display:flex; gap:6px; flex-wrap:wrap; }
+  .dff-preset{
+    width:22px; height:22px; border-radius:4px; cursor:pointer;
+    border:2px solid transparent; transition:border-color .12s;
+  }
+  .dff-preset:hover, .dff-preset.selected{ border-color:#fff; }
+  .dff-btns{ display:flex; gap:8px; margin-top:14px; }
+  .dff-btn-save{
+    flex:1; padding:9px; border-radius:6px; cursor:pointer;
+    background:var(--accent-soft); border:1px solid var(--accent);
+    color:var(--accent); font-weight:600; font-size:12.5px;
+  }
+  .dff-btn-save:hover{ background:#3fb6a833; }
+  .dff-btn-cancel{
+    padding:9px 16px; border-radius:6px; cursor:pointer;
+    background:var(--bg-2); border:1px solid var(--line);
+    color:var(--text-1); font-size:12.5px;
+  }
+  .dff-btn-cancel:hover{ border-color:var(--text-2); }
+
+  /* ---------- draw popup & github dialog ---------- */
+  #draw-popup, #github-dialog{
+    position:fixed; inset:0; background:rgba(0,0,0,.55);
+    z-index:2000; display:flex; align-items:center; justify-content:center;
+  }
+  #draw-popup-inner, #github-dialog-inner{
+    background:var(--bg-1); border:1px solid var(--line);
+    border-radius:12px; padding:24px; width:320px; max-width:92vw;
+    box-shadow:0 10px 40px rgba(0,0,0,.5);
+  }
+  #draw-popup-inner h3, #github-dialog-inner h3{
+    margin:0 0 16px; font-size:16px; color:var(--text-0);
+  }
+  .draw-field{ margin-bottom:12px; }
+  .draw-field label{ display:block; font-size:11px; color:var(--text-2); margin-bottom:4px; }
+  .draw-field input, .draw-field select, .draw-field textarea{
+    width:100%; background:var(--bg-2); border:1px solid var(--line);
+    color:var(--text-0); padding:8px 10px; border-radius:6px;
+    font-size:13px; font-family:var(--sans); outline:none; box-sizing:border-box;
+  }
+  .draw-field input[type="color"]{ height:36px; padding:2px 4px; cursor:pointer; }
+  .draw-field input:focus, .draw-field select:focus, .draw-field textarea:focus{ border-color:var(--accent); }
+  .draw-field textarea{ resize:vertical; min-height:56px; }
+  .draw-popup-btns{ display:flex; gap:8px; margin-top:16px; justify-content:flex-end; }
+  .draw-popup-btns button{
+    padding:8px 18px; border-radius:6px; font-size:13px; cursor:pointer;
+    border:1px solid var(--line); background:var(--bg-2); color:var(--text-1);
+  }
+  .draw-popup-btns button.primary{
+    background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;
+  }
+  .draw-popup-btns button:hover{ opacity:.85; }
+  .draw-hint{ font-size:11.5px; color:var(--text-2); margin:0 0 14px; line-height:1.5; }
+
+  /* draw list items in sidebar */
+  .draw-item{
+    display:flex; align-items:center; gap:6px;
+    padding:5px 4px; border-radius:4px; font-size:12px; color:var(--text-1);
+  }
+  .draw-item:hover{ background:var(--bg-2); }
+  .draw-item .di-swatch{ width:8px; height:8px; border-radius:50%; flex:none; }
+  .draw-item .di-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .draw-item .di-del{
+    background:none; border:none; color:var(--text-2); cursor:pointer;
+    font-size:12px; padding:0 2px; opacity:0; transition:opacity .15s;
+  }
+  .draw-item:hover .di-del{ opacity:1; }
+  .draw-item .di-del:hover{ color:#e8636b; }
+
+  /* ---------- large floating info panel (over the map) ---------- */
+  #info-panel-overlay{
+    position:absolute; left:24px; right:24px; bottom:24px;
+    max-width:640px; margin:0 auto;
+    max-height:62vh;
+    background:var(--bg-1); border:1px solid var(--line);
+    border-radius:14px; box-shadow:0 10px 40px rgba(0,0,0,.55);
+    z-index:1050;
+    overflow:hidden;
+    display:none;
+    flex-direction:column;
+    transition:max-height .3s ease;
+  }
+  #info-panel-overlay.open{ display:flex; }
+  /* Drag handle shown on mobile to expand/collapse the panel */
+  .info-panel-handle{
+    display:none; justify-content:center; align-items:center;
+    padding:8px 0 4px; cursor:pointer; flex:none;
+  }
+  .info-panel-handle-bar{
+    width:36px; height:4px; border-radius:2px; background:var(--line);
+  }
+  .info-panel-close{
+    position:absolute; top:14px; right:14px; z-index:5;
+    width:32px; height:32px; border-radius:50%;
+    background:var(--bg-2); border:1px solid var(--line);
+    color:var(--text-1); font-size:15px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .info-panel-close:hover{ color:var(--text-0); border-color:var(--accent); }
+  #info-panel{
+    overflow-y:auto; padding:26px 28px 28px; flex:1;
+  }
+  #info-panel .empty{color:var(--text-2);font-size:14px;line-height:1.6;}
+
+  .info-card .tag{
+    display:inline-block;font-family:var(--mono);font-size:11.5px;
+    letter-spacing:.06em;text-transform:uppercase;
+    padding:4px 10px;border-radius:4px;margin-bottom:12px;
+  }
+  .info-card .tag.canal{background:#4fb6e822;color:var(--canal);}
+  .info-card .tag.point{background:#e0a23a22;color:var(--gate);}
+  .info-card h2{font-size:22px;margin:0 0 16px;color:var(--text-0);font-weight:700;padding-right:36px;}
+  .info-row{
+    display:flex;justify-content:space-between;align-items:baseline;
+    padding:11px 0;border-bottom:1px dashed var(--line);font-size:14.5px;
+  }
+  .info-row .k{color:var(--text-2);}
+  .info-row .v{font-family:var(--mono);color:var(--text-0);text-align:right;font-size:15px;}
+  .info-row .v.big{font-size:24px;color:var(--station);font-weight:700;}
+  .info-row .v.person{color:var(--accent);font-weight:700;font-size:17px;}
+  .ext-data{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);}
+  .ext-data .ext-row{font-size:14px;color:var(--text-1);margin-bottom:8px;line-height:1.55;}
+  .ext-data .ext-row b{color:var(--text-0);}
+  .note-box{
+    margin-top:16px;padding:13px 14px;border-radius:8px;
+    background:var(--accent-soft);border:1px solid #3fb6a833;
+    font-size:13px;color:var(--text-1);line-height:1.65;
+  }
+
+  .draw-export-btn{
+    width:100%;background:var(--accent-soft);border:1px solid #3fb6a855;
+    color:var(--accent);font-weight:600;padding:9px;border-radius:6px;
+    cursor:pointer;font-size:12.5px;
+  }
+  .draw-export-btn:hover{background:#3fb6a833;}
+  .drawn-item{
+    display:flex;align-items:center;gap:6px;
+    padding:5px 4px;border-radius:4px;font-size:12px;color:var(--text-1);
+    border-bottom:1px dashed var(--line);
+  }
+  .drawn-item:last-child{border-bottom:none;}
+  .drawn-item .di-swatch{width:9px;height:9px;border-radius:2px;flex:none;}
+  .drawn-item .di-swatch.dot{border-radius:50%;}
+  .drawn-item .di-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-0);}
+  .drawn-item .di-del{
+    background:transparent;border:none;color:var(--text-2);
+    cursor:pointer;font-size:13px;padding:0 3px;
+  }
+  .drawn-item .di-del:hover{color:#e8636b;}
+
+  /* ---------- draw info dialog ---------- */
+  #draw-dialog-overlay{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);
+    z-index:2000;align-items:center;justify-content:center;
+  }
+  #draw-dialog-overlay.open{display:flex;}
+  #draw-dialog{
+    background:var(--bg-1);border:1px solid var(--line);border-radius:12px;
+    padding:24px;width:min(420px,92vw);max-height:90vh;overflow-y:auto;
+    box-shadow:0 12px 40px rgba(0,0,0,.6);
+  }
+  #draw-dialog h3{margin:0 0 18px;font-size:16px;color:var(--text-0);}
+  .dd-field{margin-bottom:14px;}
+  .dd-field label{display:block;font-size:11.5px;color:var(--text-2);margin-bottom:5px;}
+  .dd-field input,.dd-field textarea,.dd-field select{
+    width:100%;background:var(--bg-2);border:1px solid var(--line);
+    color:var(--text-0);padding:8px 10px;border-radius:6px;
+    font-size:13px;font-family:var(--sans);outline:none;
+  }
+  .dd-field input:focus,.dd-field textarea:focus,.dd-field select:focus{border-color:var(--accent);}
+  .dd-field textarea{height:70px;resize:vertical;}
+  .dd-color-row{display:flex;align-items:center;gap:10px;}
+  .dd-color-row input[type=color]{width:40px;height:34px;padding:2px;border-radius:4px;cursor:pointer;border:1px solid var(--line);}
+  .dd-color-row input[type=range]{flex:1;}
+  .dd-btns{display:flex;gap:10px;margin-top:20px;}
+  .dd-btn-ok{flex:1;background:var(--accent);border:none;color:#fff;font-weight:700;padding:10px;border-radius:7px;cursor:pointer;font-size:13.5px;}
+  .dd-btn-ok:hover{opacity:.9;}
+  .dd-btn-cancel{flex:none;background:var(--bg-2);border:1px solid var(--line);color:var(--text-1);padding:10px 18px;border-radius:7px;cursor:pointer;font-size:13px;}
+
+  /* ---------- map ---------- */
+  #map{flex:1;background:#0a0f13;}
+  .leaflet-popup-content-wrapper{background:var(--bg-1);color:var(--text-0);}
+  .leaflet-popup-tip{background:var(--bg-1);}
+  .leaflet-control-layers{background:var(--bg-1)!important;color:var(--text-0);}
+
+  .locate-btn{
+    background:var(--bg-1);border:1px solid var(--line);
+    width:34px;height:34px;border-radius:6px;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;color:var(--text-1);font-size:16px;
+    box-shadow:0 2px 6px rgba(0,0,0,.4);
+  }
+  .locate-btn:hover{color:var(--accent);border-color:var(--accent);}
+  .locate-btn.active{color:var(--accent);border-color:var(--accent);}
+
+  .user-location-dot{
+    width:14px;height:14px;border-radius:50%;
+    background:#3fb6e8;border:2px solid #fff;
+    box-shadow:0 0 0 0 rgba(63,182,232,0.6);
+    animation:pulse-loc 2s infinite;
+  }
+  @keyframes pulse-loc{
+    0%{box-shadow:0 0 0 0 rgba(63,182,232,.55);}
+    70%{box-shadow:0 0 0 14px rgba(63,182,232,0);}
+    100%{box-shadow:0 0 0 0 rgba(63,182,232,0);}
+  }
+
+  footer.help{
+    padding:10px 18px;border-top:1px solid var(--line);
+    font-size:10.5px;color:var(--text-2);
+  }
+  footer.help b{color:var(--text-1);}
+
+  ::-webkit-scrollbar{width:6px;}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+
+  /* ---------- mobile layout (phones / narrow tablets) ---------- */
+  @media (max-width: 768px){
+    .menu-toggle-btn{ display:flex; }
+    .sidebar-close-btn{ display:flex; }
+
+    #sidebar{
+      position:fixed; top:0; left:0; height:100%;
+      width:86vw; min-width:0; max-width:380px;
+      transform:translateX(-100%);
+      transition:transform .25s ease;
+      z-index:1100;
+      box-shadow:4px 0 24px rgba(0,0,0,.5);
+    }
+    #sidebar.open{ transform:translateX(0); }
+    .drawer-backdrop.open{ display:block; }
+
+    .brand{ display:flex; align-items:flex-start; gap:10px; }
+    .brand-text{ flex:1; }
+
+    /* map controls need breathing room below the hamburger button */
+    .leaflet-top.leaflet-right{ top:58px; }
+
+    /* bigger tap targets on touch screens */
+    .upload-btn, .measure-btn, #search-input{ padding-top:11px; padding-bottom:11px; }
+    .tree-row{ padding:8px 2px; }
+    .tree-row input[type="checkbox"]{ width:18px; height:18px; }
+    .result-item{ padding:10px 8px; }
+    .locate-btn{ width:40px; height:40px; }
+
+    #info-panel-overlay{
+      left:0; right:0; bottom:0;
+      max-width:none; max-height:38vh;
+      border-radius:14px 14px 0 0;
+      border-bottom:none;
+    }
+    #info-panel-overlay.expanded{
+      max-height:75vh;
+    }
+    .info-panel-handle{ display:flex; }
+    #info-panel{ padding:4px 16px 16px; }
+    .info-card h2{ font-size:16px; margin-bottom:10px; }
+    .info-row{ padding:7px 0; font-size:13px; }
+    .info-row .v{ font-size:13px; }
+    .info-row .v.big{ font-size:18px; }
+    .info-row .v.person{ font-size:14px; }
+    .info-panel-close{ top:10px; right:10px; width:28px; height:28px; font-size:13px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <button class="menu-toggle-btn" id="menu-toggle-btn" title="Mở danh sách công cụ">☰</button>
+  <div class="drawer-backdrop" id="drawer-backdrop"></div>
+  <div id="sidebar">
+    <div class="brand">
+      <div class="brand-text">
+        <div class="eyebrow">Quản lý hạ tầng thủy lợi</div>
+        <h1>Bản đồ Công trình Thủy lợi</h1>
+        <p>Bản mẫu — nạp dữ liệu KML/KMZ &amp; Excel của đơn vị để dùng ngay</p>
+      </div>
+      <button class="sidebar-close-btn" id="sidebar-close-btn" title="Đóng">✕</button>
+    </div>
+
+    <!-- PWA install banner — shown only on mobile, hidden after install -->
+    <div id="pwa-banner" style="display:none;background:#1a3a52;padding:10px 14px;
+      border-bottom:1px solid rgba(255,255,255,.1);">
+      <div style="font-size:11.5px;color:rgba(255,255,255,.8);margin-bottom:6px;">
+        📱 Cài app lên màn hình chính để dùng như app thật:
+      </div>
+      <div id="pwa-ios-hint" style="display:none;font-size:11px;color:#7fd4ec;line-height:1.6;">
+        Safari: bấm <b>⬆ Chia sẻ</b> → <b>"Thêm vào màn hình chính"</b>
+      </div>
+      <div id="pwa-android-btn" style="display:none;">
+        <button onclick="installPWA()" style="background:#3fb6a8;border:none;color:#fff;
+          padding:8px 14px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;width:100%;">
+          ⬇ Cài app về điện thoại
+        </button>
+      </div>
+    </div>
+
+    <div class="section">
+      <input type="text" id="search-input" placeholder="🔍  Gõ tên kênh, cống, trạm…" />
+      <div id="search-results"></div>
+    </div>
+
+    <div class="section">
+      <div class="status-line" id="kml-status">Đang kiểm tra dữ liệu…</div>
+      <div class="status-line" id="xlsx-status" style="margin-top:4px;">Đang kiểm tra dữ liệu người phụ trách…</div>
+
+      <details class="share-link-tool" id="manual-upload-tool">
+        <summary>⚙️ Nạp file thủ công (kiểm tra / dự phòng)</summary>
+        <div class="share-link-body">
+          <p class="share-link-hint">Dùng mục này để tự nạp file kiểm tra trước khi đưa lên GitHub, hoặc khi liên kết dùng chung gặp lỗi.</p>
+          <div class="upload-row-pair">
+            <label class="upload-btn">
+              <span class="ic">▤</span>
+              <span id="kml-label">KML / KMZ</span>
+              <input type="file" id="kml-input" accept=".kml,.kmz" multiple />
+            </label>
+            <label class="upload-btn">
+              <span class="ic">▤</span>
+              <span id="xlsx-label">Excel phụ trách</span>
+              <input type="file" id="xlsx-input" accept=".xlsx,.xls" />
+            </label>
+          </div>
+          <p class="share-link-hint" style="margin-top:8px;">Excel: mỗi sheet = 1 tuyến kênh (tên sheet = tên kênh). Cột cần có: <b style="color:var(--text-1)">K bắt đầu</b>, <b style="color:var(--text-1)">K kết thúc</b>, <b style="color:var(--text-1)">Người phụ trách</b>.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="section legend-section">
+      <div class="section-title">1 · Lớp hiển thị</div>
+      <div id="legend-tree">
+        <div class="status-line">Nạp file KML/KMZ để xem danh sách kênh, cống, trạm theo đúng cấu trúc thư mục trong file của bạn.</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">2 · Công cụ đo</div>
+      <div class="measure-row">
+        <button class="measure-btn" id="btn-measure-distance" data-mode="distance">
+          <span class="ic">⟷</span>Đo khoảng cách
+        </button>
+        <button class="measure-btn" id="btn-measure-area" data-mode="area">
+          <span class="ic">▱</span>Đo diện tích
+        </button>
+      </div>
+      <div class="status-line" id="measure-status">Chọn một công cụ, click các điểm trên bản đồ. Click đúp hoặc bấm Enter để kết thúc, Esc để hủy.</div>
+      <div id="measure-result" class="measure-result" style="display:none;"></div>
+      <button class="measure-clear" id="btn-measure-clear" style="display:none;">Xóa kết quả đo</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">3 · Vẽ &amp; Xuất KML</div>
+      <div class="measure-row">
+        <button class="measure-btn" id="btn-draw-line">
+          <span class="ic">〜</span>Vẽ đường
+        </button>
+        <button class="measure-btn" id="btn-draw-point">
+          <span class="ic">⊕</span>Vẽ điểm
+        </button>
+      </div>
+      <div class="status-line" id="draw-status">Chọn công cụ vẽ, click trên bản đồ. Double-click để kết thúc đường, Esc để hủy.</div>
+      <div id="draw-list" style="margin-top:8px;max-height:160px;overflow-y:auto;"></div>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+        <button class="draw-export-btn" id="btn-export-kml" style="display:none;">⬇ Xuất file KML về máy</button>
+        <button class="draw-export-btn" id="btn-save-github" style="display:none;background:#3fb6a822;border-color:#3fb6a855;color:var(--accent);">☁ Lưu thẳng lên GitHub</button>
+        <button class="measure-clear" id="btn-draw-clear" style="display:none;">Xóa tất cả đối tượng đã vẽ</button>
+      </div>
+    </div>
+
+    <div class="section" style="border-bottom:none;flex:1;">
+      <div class="status-line">Bấm vào một tuyến kênh hoặc một điểm công trình trên bản đồ — thông tin chi tiết sẽ hiện trong khung lớn phía dưới bản đồ.</div>
+    </div>
+
+    <footer class="help">
+      Phiên bản thử nghiệm chạy hoàn toàn trên trình duyệt — dữ liệu nạp vào sẽ <b>mất khi tải lại trang</b>. Mỗi phiên làm việc, hãy nạp lại file KML/KMZ và Excel gốc của đơn vị. Định vị GPS (nút ◎ trên bản đồ) cần <b>mở file qua máy chủ HTTPS</b>.
+    </footer>
+  </div>
+
+  <!-- Draw info popup -->
+  <div id="draw-popup" style="display:none;">
+    <div id="draw-popup-inner">
+      <h3 id="draw-popup-title">Thêm thông tin</h3>
+      <div class="draw-field">
+        <label>Tên *</label>
+        <input type="text" id="draw-name" placeholder="Ví dụ: Cống Hòa Bình B" />
+      </div>
+      <div class="draw-field">
+        <label>Loại</label>
+        <select id="draw-type">
+          <option value="Kênh">Kênh</option>
+          <option value="Cống">Cống</option>
+          <option value="Trạm bơm">Trạm bơm</option>
+          <option value="Mốc chỉ giới">Mốc chỉ giới</option>
+          <option value="Khác">Khác</option>
+        </select>
+      </div>
+      <div class="draw-field">
+        <label>Mô tả</label>
+        <textarea id="draw-desc" rows="2" placeholder="Ghi chú thêm..."></textarea>
+      </div>
+      <div class="draw-field">
+        <label>Màu</label>
+        <input type="color" id="draw-color" value="#e85d75" />
+      </div>
+      <div class="draw-popup-btns">
+        <button id="draw-popup-cancel">Hủy</button>
+        <button id="draw-popup-save" class="primary">Lưu đối tượng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GitHub save dialog -->
+  <div id="github-dialog" style="display:none;">
+    <div id="github-dialog-inner">
+      <h3>Lưu lên GitHub</h3>
+      <p class="draw-hint">Cần GitHub Personal Access Token để ghi file. Token chỉ dùng 1 lần cho phiên này, không lưu lại.</p>
+      <div class="draw-field">
+        <label>GitHub Token</label>
+        <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx" />
+      </div>
+      <div class="draw-field">
+        <label>Repository (user/repo)</label>
+        <input type="text" id="gh-repo" placeholder="kimbim333/bando2" />
+      </div>
+      <div class="draw-field">
+        <label>Tên file trên GitHub</label>
+        <input type="text" id="gh-filename" value="du-lieu.kml" />
+      </div>
+      <div class="draw-popup-btns">
+        <button id="gh-cancel">Hủy</button>
+        <button id="gh-confirm" class="primary">Lưu lên GitHub</button>
+      </div>
+      <div id="gh-status" class="status-line" style="margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- Feature info form: appears after user finishes drawing a line/point -->
+  <div id="draw-form-overlay">
+    <h3 id="dff-title">Thông tin đối tượng vừa vẽ</h3>
+    <div class="dff-row">
+      <label>Tên *</label>
+      <input type="text" id="dff-name" placeholder="Ví dụ: Kênh Bình Minh, Cống K3+200…" />
+    </div>
+    <div class="dff-row">
+      <label>Loại công trình</label>
+      <select id="dff-type">
+        <option value="">-- Chọn loại --</option>
+        <optgroup label="Kênh / Tuyến">
+          <option value="Kênh chính">Kênh chính</option>
+          <option value="Kênh nhánh">Kênh nhánh</option>
+          <option value="Kênh cấp 1">Kênh cấp 1</option>
+          <option value="Kênh cấp 2">Kênh cấp 2</option>
+          <option value="Kênh cấp 3">Kênh cấp 3</option>
+        </optgroup>
+        <optgroup label="Công trình điểm">
+          <option value="Cống điều tiết">Cống điều tiết</option>
+          <option value="Trạm bơm">Trạm bơm</option>
+          <option value="Mốc chỉ giới">Mốc chỉ giới</option>
+          <option value="Cống đầu mối">Cống đầu mối</option>
+          <option value="Hồ chứa">Hồ chứa</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="dff-row">
+      <label>Nhóm / Folder (để phân loại trong cây lớp hiển thị)</label>
+      <input type="text" id="dff-folder" placeholder="Ví dụ: Kênh chính, Công trình khu A…" />
+    </div>
+    <div class="dff-row">
+      <label>Màu hiển thị</label>
+      <div class="dff-color-row">
+        <input type="color" id="dff-color" value="#4fb6e8" />
+        <div class="dff-color-presets" id="dff-color-presets">
+          <div class="dff-preset" style="background:#4fb6e8" data-color="#4fb6e8" title="Xanh dương"></div>
+          <div class="dff-preset" style="background:#e0a23a" data-color="#e0a23a" title="Vàng cam"></div>
+          <div class="dff-preset" style="background:#3fb6a8" data-color="#3fb6a8" title="Xanh lá"></div>
+          <div class="dff-preset" style="background:#e85d75" data-color="#e85d75" title="Đỏ hồng"></div>
+          <div class="dff-preset" style="background:#c4a3e8" data-color="#c4a3e8" title="Tím"></div>
+          <div class="dff-preset" style="background:#ffffff" data-color="#ffffff" title="Trắng"></div>
+          <div class="dff-preset" style="background:#ffff00" data-color="#ffff00" title="Vàng"></div>
+          <div class="dff-preset" style="background:#ff6600" data-color="#ff6600" title="Cam"></div>
+        </div>
+      </div>
+    </div>
+    <div class="dff-row">
+      <label>Mô tả / Ghi chú</label>
+      <textarea id="dff-desc" placeholder="Mô tả chi tiết, thông số kỹ thuật, ghi chú…"></textarea>
+    </div>
+    <div class="dff-btns">
+      <button class="dff-btn-save" id="dff-save">✓ Lưu đối tượng</button>
+      <button class="dff-btn-cancel" id="dff-cancel">Hủy bỏ</button>
+    </div>
+  </div>
+
+  <div id="info-panel-overlay">
+    <div class="info-panel-handle" id="info-panel-handle">
+      <div class="info-panel-handle-bar"></div>
+    </div>
+    <button class="info-panel-close" id="info-panel-close" title="Đóng">✕</button>
+    <div id="info-panel"></div>
+  </div>
+
+  <!-- Dialog nhập thông tin khi vẽ xong 1 đối tượng -->
+  <div id="draw-dialog-overlay">
+    <div id="draw-dialog">
+      <h3 id="draw-dialog-title">Thông tin đối tượng vừa vẽ</h3>
+      <div class="dd-field">
+        <label>Tên *</label>
+        <input type="text" id="dd-name" placeholder="Ví dụ: Kênh Hòa Bình, Cống A1..." />
+      </div>
+      <div class="dd-field">
+        <label>Nhóm / Folder (để phân loại trong KML)</label>
+        <input type="text" id="dd-folder" placeholder="Ví dụ: Kênh chính, Công trình..." />
+      </div>
+      <div class="dd-field">
+        <label>Loại công trình</label>
+        <select id="dd-kind">
+          <option value="Kênh">Kênh / Tuyến</option>
+          <option value="Cống">Cống</option>
+          <option value="Trạm bơm">Trạm bơm</option>
+          <option value="Mốc chỉ giới">Mốc chỉ giới</option>
+          <option value="Khác">Khác</option>
+        </select>
+      </div>
+      <div class="dd-field">
+        <label>Màu hiển thị</label>
+        <div class="dd-color-row">
+          <input type="color" id="dd-color" value="#1e90ff" />
+          <span id="dd-color-label" style="font-size:12px;color:var(--text-2);">#1e90ff</span>
+        </div>
+      </div>
+      <div class="dd-field" id="dd-width-field">
+        <label>Độ dày nét vẽ: <span id="dd-width-label">3</span>px</label>
+        <input type="range" id="dd-width" min="1" max="8" value="3" />
+      </div>
+      <div class="dd-field">
+        <label>Mô tả / Ghi chú</label>
+        <textarea id="dd-desc" placeholder="Chiều dài, năm xây dựng, ghi chú kỹ thuật..."></textarea>
+      </div>
+      <div class="dd-btns">
+        <button class="dd-btn-cancel" id="dd-cancel">Hủy (không lưu)</button>
+        <button class="dd-btn-ok" id="dd-ok">✓ Lưu đối tượng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  /* ============================================================
+   * CẤU HÌNH DỮ LIỆU — CÁN BỘ ĐIỀN VÀO ĐÂY (chỉ làm 1 lần)
+   * Dán đường link "Raw" của file trên GitHub vào 2 dòng dưới.
+   * Để trống ("") nếu không dùng file đó.
+   * ============================================================ */
+  const CONFIG_KML_URL  = "";   // ví dụ: "https://raw.githubusercontent.com/tenban/repo/main/du-lieu.kmz"
+  const CONFIG_XLSX_URL = "";   // ví dụ: "https://raw.githubusercontent.com/tenban/repo/main/phu-trach.xlsx"
+  /* ============================================================ */
+
+  /* ===================== MOBILE DRAWER ===================== */
+  const sidebarEl = document.getElementById('sidebar');
+  const menuToggleBtn = document.getElementById('menu-toggle-btn');
+  const sidebarCloseBtn = document.getElementById('sidebar-close-btn');
+  const drawerBackdrop = document.getElementById('drawer-backdrop');
+
+  function openDrawer(){
+    sidebarEl.classList.add('open');
+    drawerBackdrop.classList.add('open');
+  }
+  function closeDrawer(){
+    sidebarEl.classList.remove('open');
+    drawerBackdrop.classList.remove('open');
+  }
+  menuToggleBtn.addEventListener('click', openDrawer);
+  sidebarCloseBtn.addEventListener('click', closeDrawer);
+  drawerBackdrop.addEventListener('click', closeDrawer);
+
+  function isMobileLayout(){
+    return window.matchMedia('(max-width: 768px)').matches;
+  }
+
+  /* ===================== INFO PANEL OVERLAY (large floating card) ===================== */
+  const infoPanelOverlay = document.getElementById('info-panel-overlay');
+  const infoPanelCloseBtn = document.getElementById('info-panel-close');
+  const infoPanelHandle = document.getElementById('info-panel-handle');
+
+  function openInfoOverlay(){
+    infoPanelOverlay.classList.add('open');
+    infoPanelOverlay.classList.remove('expanded'); // always start collapsed on mobile
+  }
+  function closeInfoOverlay(){
+    infoPanelOverlay.classList.remove('open','expanded');
+  }
+  infoPanelCloseBtn.addEventListener('click', closeInfoOverlay);
+  // Tap the handle bar to toggle between collapsed (38vh) and expanded (75vh)
+  infoPanelHandle.addEventListener('click', ()=>{
+    infoPanelOverlay.classList.toggle('expanded');
+  });
+
+  /* ===================== MAP SETUP ===================== */
+  const map = L.map('map', { zoomControl: true, attributionControl: true }).setView([21.0285, 105.8542], 13);
+
+  const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19, attribution: 'Tiles © Esri'
+  }).addTo(map);
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '© OpenStreetMap'
+  });
+  L.control.layers({ "Ảnh vệ tinh (Esri)": sat, "Bản đồ nền (OSM)": osm }, {}, { position: 'topright' }).addTo(map);
+
+  const canalLayerGroup = L.layerGroup().addTo(map);
+  const pointLayerGroup = L.layerGroup().addTo(map);
+
+  let highlightMarker = null;
+
+  /* ===================== LOCATE ME (GPS) ===================== */
+  const LocateControl = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd: function(){
+      const btn = L.DomUtil.create('div', 'locate-btn');
+      btn.innerHTML = '◎';
+      btn.title = 'Định vị vị trí của tôi';
+      L.DomEvent.disableClickPropagation(btn);
+      L.DomEvent.on(btn, 'click', toggleLocate);
+      this._btn = btn;
+      return btn;
+    }
+  });
+  const locateControl = new LocateControl();
+  map.addControl(locateControl);
+
+  let watchId = null;
+  let userMarker = null;
+  let userAccuracyCircle = null;
+  let hasCenteredOnUser = false;
+
+  function toggleLocate(){
+    if(watchId !== null){
+      stopLocate();
+      return;
+    }
+    if(!('geolocation' in navigator)){
+      alert('Trình duyệt/thiết bị này không hỗ trợ định vị (Geolocation).');
+      return;
+    }
+    locateControl._btn.classList.add('active');
+    hasCenteredOnUser = false;
+    watchId = navigator.geolocation.watchPosition(onLocateSuccess, onLocateError, {
+      enableHighAccuracy: true, maximumAge: 5000, timeout: 15000
+    });
+  }
+
+  function stopLocate(){
+    if(watchId !== null){ navigator.geolocation.clearWatch(watchId); watchId = null; }
+    locateControl._btn.classList.remove('active');
+    if(userMarker){ map.removeLayer(userMarker); userMarker = null; }
+    if(userAccuracyCircle){ map.removeLayer(userAccuracyCircle); userAccuracyCircle = null; }
+  }
+
+  function onLocateSuccess(pos){
+    const { latitude, longitude, accuracy } = pos.coords;
+    const latlng = [latitude, longitude];
+    if(!userMarker){
+      userMarker = L.marker(latlng, {
+        icon: L.divIcon({ className: '', html: '<div class="user-location-dot"></div>', iconSize:[14,14] })
+      }).addTo(map);
+    } else {
+      userMarker.setLatLng(latlng);
+    }
+    if(!userAccuracyCircle){
+      userAccuracyCircle = L.circle(latlng, { radius: accuracy, color:'#3fb6e8', weight:1, fillColor:'#3fb6e8', fillOpacity:0.08 }).addTo(map);
+    } else {
+      userAccuracyCircle.setLatLng(latlng);
+      userAccuracyCircle.setRadius(accuracy);
+    }
+    if(!hasCenteredOnUser){
+      map.setView(latlng, 17);
+      hasCenteredOnUser = true;
+    }
+  }
+
+  function onLocateError(err){
+    locateControl._btn.classList.remove('active');
+    let msg = 'Không lấy được vị trí.';
+    if(err.code === 1) msg = 'Bạn cần cho phép quyền truy cập vị trí để dùng tính năng này.';
+    else if(err.code === 2) msg = 'Không xác định được vị trí (tín hiệu GPS yếu hoặc thiết bị không hỗ trợ).';
+    else if(err.code === 3) msg = 'Định vị quá thời gian chờ, thử lại.';
+    alert(msg);
+    watchId = null;
+  }
+
+  /* ===================== MEASURE TOOL (distance / area) ===================== */
+  let measureMode = null; // 'distance' | 'area' | null
+  let measurePoints = [];
+  let measureLayer = null;     // committed polyline/polygon while drawing
+  let measureMarkers = [];     // vertex markers
+  let measurePreviewLine = null; // rubber-band line to cursor
+
+  const btnDistance = document.getElementById('btn-measure-distance');
+  const btnArea = document.getElementById('btn-measure-area');
+  const btnClear = document.getElementById('btn-measure-clear');
+  const measureStatus = document.getElementById('measure-status');
+  const measureResultEl = document.getElementById('measure-result');
+
+  function setMeasureMode(mode){
+    // toggle off if clicking the active one again
+    if(measureMode === mode){ stopMeasuring(true); return; }
+    stopMeasuring(true);
+    measureMode = mode;
+    map.doubleClickZoom.disable();
+    btnDistance.classList.toggle('active', mode==='distance');
+    btnArea.classList.toggle('active', mode==='area');
+    map.getContainer().style.cursor = 'crosshair';
+    measureStatus.textContent = mode === 'distance'
+      ? 'Click các điểm dọc theo đoạn cần đo. Click đúp hoặc Enter để kết thúc, Esc để hủy.'
+      : 'Click các điểm quanh khu vực cần đo (≥3 điểm). Click đúp hoặc Enter để kết thúc, Esc để hủy.';
+  }
+
+  btnDistance.addEventListener('click', ()=> setMeasureMode('distance'));
+  btnArea.addEventListener('click', ()=> setMeasureMode('area'));
+  btnClear.addEventListener('click', ()=> clearMeasureResult());
+
+  function clearMeasureVertexLayers(){
+    measureMarkers.forEach(m=> map.removeLayer(m));
+    measureMarkers = [];
+    if(measurePreviewLine){ map.removeLayer(measurePreviewLine); measurePreviewLine = null; }
+  }
+
+  function clearMeasureResult(){
+    if(measureLayer){ map.removeLayer(measureLayer); measureLayer = null; }
+    clearMeasureVertexLayers();
+    measurePoints = [];
+    measureResultEl.style.display = 'none';
+    btnClear.style.display = 'none';
+  }
+
+  function stopMeasuring(cancel){
+    measureMode = null;
+    map.doubleClickZoom.enable();
+    btnDistance.classList.remove('active');
+    btnArea.classList.remove('active');
+    map.getContainer().style.cursor = '';
+    clearMeasureVertexLayers();
+    if(cancel){
+      if(measureLayer){ map.removeLayer(measureLayer); measureLayer = null; }
+      measurePoints = [];
+    }
+    measureStatus.textContent = 'Chọn một công cụ, click các điểm trên bản đồ. Click đúp hoặc bấm Enter để kết thúc, Esc để hủy.';
+  }
+
+  function addMeasurePoint(latlng){
+    measurePoints.push(latlng);
+    const v = L.circleMarker(latlng, { radius:4, color:'#fff', weight:1.5, fillColor:'#e85d75', fillOpacity:1 }).addTo(map);
+    measureMarkers.push(v);
+    redrawMeasureShape();
+  }
+
+  function redrawMeasureShape(){
+    if(measureLayer){ map.removeLayer(measureLayer); measureLayer = null; }
+    if(measurePoints.length < 2) return;
+    if(measureMode === 'distance'){
+      measureLayer = L.polyline(measurePoints, { color:'#e85d75', weight:3, dashArray:'6,5' }).addTo(map);
+      updateDistanceResult();
+    } else if(measureMode === 'area'){
+      measureLayer = L.polygon(measurePoints, { color:'#e85d75', weight:3, fillColor:'#e85d75', fillOpacity:0.15, dashArray:'6,5' }).addTo(map);
+      updateAreaResult();
+    }
+  }
+
+  function totalDistanceOf(points){
+    let total = 0;
+    for(let i=0;i<points.length-1;i++){
+      total += haversine({lat:points[i].lat,lng:points[i].lng}, {lat:points[i+1].lat,lng:points[i+1].lng});
+    }
+    return total;
+  }
+
+  function polygonAreaOf(points){
+    if(points.length < 3) return 0;
+    const lat0 = points.reduce((s,p)=>s+p.lat,0)/points.length;
+    const R = 6371000;
+    const toXY = (lat,lng)=>({ x:(lng*Math.PI/180)*R*Math.cos(lat0*Math.PI/180), y:(lat*Math.PI/180)*R });
+    const pts = points.map(p=>toXY(p.lat,p.lng));
+    let area = 0;
+    for(let i=0;i<pts.length;i++){
+      const j = (i+1)%pts.length;
+      area += pts[i].x*pts[j].y - pts[j].x*pts[i].y;
+    }
+    return Math.abs(area)/2;
+  }
+
+  function formatDistance(m){
+    if(m >= 1000) return (m/1000).toFixed(3) + ' km  (' + m.toFixed(0) + ' m)';
+    return m.toFixed(1) + ' m';
+  }
+  function formatArea(m2){
+    const ha = m2/10000;
+    return m2.toFixed(0) + ' m²  (' + ha.toFixed(3) + ' ha)';
+  }
+
+  function updateDistanceResult(){
+    const d = totalDistanceOf(measurePoints);
+    measureResultEl.style.display = 'block';
+    measureResultEl.innerHTML = `<div class="mr-label">Khoảng cách (${measurePoints.length} điểm)</div>${formatDistance(d)}`;
+  }
+  function updateAreaResult(){
+    if(measurePoints.length < 3){
+      measureResultEl.style.display = 'block';
+      measureResultEl.innerHTML = `<div class="mr-label">Diện tích</div>Cần thêm điểm (tối thiểu 3)`;
+      return;
+    }
+    const a = polygonAreaOf(measurePoints);
+    const perim = totalDistanceOf([...measurePoints, measurePoints[0]]);
+    measureResultEl.style.display = 'block';
+    measureResultEl.innerHTML = `<div class="mr-label">Diện tích (${measurePoints.length} điểm)</div>${formatArea(a)}<div class="mr-label" style="margin-top:6px;">Chu vi</div>${formatDistance(perim)}`;
+  }
+
+  function finishMeasuring(){
+    if(measureMode === 'distance' && measurePoints.length >= 2){
+      updateDistanceResult();
+    } else if(measureMode === 'area' && measurePoints.length >= 3){
+      updateAreaResult();
+    } else {
+      clearMeasureResult();
+    }
+    btnClear.style.display = measurePoints.length ? 'block' : 'none';
+    measureMode = null;
+    map.doubleClickZoom.enable();
+    btnDistance.classList.remove('active');
+    btnArea.classList.remove('active');
+    map.getContainer().style.cursor = '';
+    clearMeasureVertexLayers();
+    measureStatus.textContent = 'Đo xong. Bấm lại một công cụ để đo tiếp (sẽ thay kết quả cũ).';
+  }
+
+  map.on('click', (e)=>{
+    if(!measureMode) return;
+    addMeasurePoint(e.latlng);
+  });
+  map.on('dblclick', (e)=>{
+    if(!measureMode) return;
+    finishMeasuring();
+  });
+  map.on('mousemove', (e)=>{
+    if(!measureMode || measurePoints.length === 0) return;
+    if(measurePreviewLine) map.removeLayer(measurePreviewLine);
+    const last = measurePoints[measurePoints.length-1];
+    measurePreviewLine = L.polyline([last, e.latlng], { color:'#e85d75', weight:2, dashArray:'3,5', opacity:0.6 }).addTo(map);
+  });
+  document.addEventListener('keydown', (e)=>{
+    if(!measureMode) return;
+    if(e.key === 'Escape'){ stopMeasuring(true); }
+    else if(e.key === 'Enter'){ finishMeasuring(); }
+  });
+
+  /* ===================== DATA STORE ===================== */
+  // allFeatures: [{id, name, type:'canal'|'point', layer, latlngs?, totalLength?, ext:[{k,v}]}]
+  let allFeatures = [];
+  let folderTree = null; // mirrors KML Folder/Placemark nesting, for the Google-Earth-style legend tree
+  // personSegments: { normalizedCanalName: [{from_m, to_m, person, raw_canal_name}], sorted asc by from_m }
+  let personSegments = {};
+  let loadedSegmentKeys = new Set(); // dedup guard: canalKey|from_m|to_m|person, prevents double-counting if the same sheet/file is loaded twice
+  let segmentWarnings = []; // text warnings about gaps/overlaps detected on last excel load
+
+  function stripDiacritics(str){
+    return (str||"")
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/đ/g,'d')
+      .trim();
+  }
+
+  /* ===================== KML / KMZ PARSING ===================== */
+  const kmlInput = document.getElementById('kml-input');
+  const kmlStatus = document.getElementById('kml-status');
+  const kmlLabel = document.getElementById('kml-label');
+
+  async function kmlOrKmzBufferToText(buf, filename){
+    if(/\.kmz$/i.test(filename)){
+      const zip = await JSZip.loadAsync(buf);
+      const kmlEntry = Object.keys(zip.files).find(n=>/\.kml$/i.test(n));
+      if(!kmlEntry) throw new Error('Không tìm thấy file .kml trong KMZ');
+      return await zip.files[kmlEntry].async('text');
+    }
+    // plain .kml: buf may be ArrayBuffer (from fetch/file) — decode as UTF-8 text
+    return new TextDecoder('utf-8').decode(buf);
+  }
+
+  kmlInput.addEventListener('change', async (e)=>{
+    const files = Array.from(e.target.files);
+    if(files.length === 0) return;
+    kmlLabel.textContent = files.length === 1 ? files[0].name : `${files.length} file đã chọn`;
+    kmlStatus.textContent = 'Đang đọc file…';
+    kmlStatus.className = 'status-line';
+    for(const file of files){
+      try{
+        const buf = await file.arrayBuffer();
+        const kmlText = await kmlOrKmzBufferToText(buf, file.name);
+        parseAndLoadKML(kmlText, file.name);
+      }catch(err){
+        console.error(err);
+        kmlStatus.textContent = `Lỗi khi đọc file "${file.name}": ` + err.message;
+        kmlStatus.className = 'status-line err';
+      }
+    }
+    e.target.value = ''; // allow re-selecting the same file(s) again later without needing a page reload
+  });
+
+  async function loadKmlFromUrl(url){
+    kmlLabel.textContent = 'Đang tải từ liên kết…';
+    kmlStatus.textContent = 'Đang tải dữ liệu bản đồ từ liên kết…';
+    kmlStatus.className = 'status-line';
+    try{
+      const res = await fetch(url, { cache: 'no-store' });
+      if(!res.ok) throw new Error('Không tải được file (HTTP ' + res.status + ')');
+      const buf = await res.arrayBuffer();
+      const filename = url.split('?')[0].split('/').pop() || 'data.kml';
+      const kmlText = await kmlOrKmzBufferToText(buf, filename);
+      parseAndLoadKML(kmlText, filename);
+      kmlLabel.textContent = 'Đã tải từ liên kết chia sẻ';
+    }catch(err){
+      console.error(err);
+      kmlStatus.textContent = 'Lỗi khi tải dữ liệu bản đồ từ liên kết: ' + err.message + '. Kiểm tra lại liên kết, hoặc nạp file thủ công.';
+      kmlStatus.className = 'status-line err';
+      const tool = document.getElementById('manual-upload-tool');
+      if(tool) tool.open = true;
+    }
+  }
+
+  function getTagText(el, tag){
+    const node = el.getElementsByTagName(tag)[0];
+    return node ? node.textContent.trim() : '';
+  }
+
+  function parseCoordString(coordStr){
+    // "lon,lat,alt lon,lat,alt ..."
+    return coordStr.trim().split(/\s+/).filter(Boolean).map(pair=>{
+      const parts = pair.split(',');
+      const lng = parseFloat(parts[0]);
+      const lat = parseFloat(parts[1]);
+      return { lat, lng };
+    }).filter(p=>!isNaN(p.lat) && !isNaN(p.lng));
+  }
+
+  function lineLength(latlngs){
+    let total = 0;
+    for(let i=0;i<latlngs.length-1;i++){
+      total += haversine(latlngs[i], latlngs[i+1]);
+    }
+    return total;
+  }
+
+  function parseExtendedData(placemark){
+    const ext = [];
+    const desc = getTagText(placemark, 'description');
+    if(desc) ext.push({ k: 'Mô tả', v: desc });
+    const extDataNodes = placemark.getElementsByTagName('Data');
+    for(const node of Array.from(extDataNodes)){
+      const name = node.getAttribute('name') || '';
+      const valueNode = node.getElementsByTagName('value')[0];
+      const value = valueNode ? valueNode.textContent.trim() : '';
+      if(name) ext.push({ k: name, v: value });
+    }
+    return ext;
+  }
+
+  function kmlColorToCss(kmlColor){
+    // KML color format is aabbggrr (alpha, blue, green, red), hex, 8 chars — note the reversed byte order vs CSS.
+    if(!kmlColor) return null;
+    const c = kmlColor.trim().replace('#','');
+    if(c.length !== 8 || /[^0-9a-fA-F]/.test(c)) return null;
+    const aa = c.substring(0,2), bb = c.substring(2,4), gg = c.substring(4,6), rr = c.substring(6,8);
+    const alpha = parseInt(aa,16)/255;
+    return { css: '#'+rr+gg+bb, alpha };
+  }
+
+  function readStyleBlock(styleEl){
+    const lineStyle = styleEl.getElementsByTagName('LineStyle')[0];
+    const iconStyle = styleEl.getElementsByTagName('IconStyle')[0];
+    const polyStyle = styleEl.getElementsByTagName('PolyStyle')[0];
+    let iconHref = '', iconScale = 1;
+    if(iconStyle){
+      const iconEl = iconStyle.getElementsByTagName('Icon')[0];
+      iconHref = iconEl ? getTagText(iconEl,'href') : '';
+      iconScale = parseFloat(getTagText(iconStyle,'scale')||'1') || 1;
+    }
+    return {
+      lineColor: lineStyle ? kmlColorToCss(getTagText(lineStyle,'color')) : null,
+      lineWidth: lineStyle ? parseFloat(getTagText(lineStyle,'width')||'') || null : null,
+      iconColor: iconStyle ? kmlColorToCss(getTagText(iconStyle,'color')) : null,
+      iconHref, iconScale,
+      polyColor: polyStyle ? kmlColorToCss(getTagText(polyStyle,'color')) : null,
+    };
+  }
+
+  function parseSharedStyles(xml){
+    const stylesById = {};
+    Array.from(xml.getElementsByTagName('Style')).forEach(styleEl=>{
+      const id = styleEl.getAttribute('id');
+      if(!id) return; // inline styles (no id) are resolved per-Placemark instead
+      stylesById[id] = readStyleBlock(styleEl);
+    });
+    // StyleMap: map "normal" key to its referenced style (common in Google Earth exports)
+    Array.from(xml.getElementsByTagName('StyleMap')).forEach(mapEl=>{
+      const id = mapEl.getAttribute('id');
+      if(!id) return;
+      const pairs = Array.from(mapEl.getElementsByTagName('Pair'));
+      const normalPair = pairs.find(p => getTagText(p,'key') === 'normal') || pairs[0];
+      if(normalPair){
+        const ref = getTagText(normalPair, 'styleUrl').replace('#','');
+        if(stylesById[ref]) stylesById[id] = stylesById[ref];
+      }
+    });
+    return stylesById;
+  }
+
+  function resolvePlacemarkStyle(pm, stylesById){
+    const inlineStyleEl = pm.getElementsByTagName('Style')[0];
+    if(inlineStyleEl) return readStyleBlock(inlineStyleEl);
+    const styleUrlEl = pm.getElementsByTagName('styleUrl')[0];
+    if(styleUrlEl){
+      const ref = styleUrlEl.textContent.trim().replace('#','');
+      if(stylesById[ref]) return stylesById[ref];
+    }
+    return null;
+  }
+
+  // Map Google Earth KML <IconStyle><Icon><href> URL patterns → local SVG shape names
+  function getIconShapeFromHref(href){
+    if(!href) return 'circle';
+    const h = href.toLowerCase();
+    if(h.includes('pushpin'))                  return 'pushpin';
+    if(h.includes('paddle'))                   return 'paddle';
+    if(h.includes('/water'))                   return 'water';
+    if(h.includes('triangle'))                 return 'triangle';
+    if(h.includes('diamond'))                  return 'diamond';
+    if(h.includes('star'))                     return 'star';
+    if(h.includes('square'))                   return 'square';
+    if(h.includes('cross')||h.includes('/plus')) return 'cross';
+    if(h.includes('flag'))                     return 'flag';
+    if(h.includes('info'))                     return 'info';
+    if(h.includes('donut')||h.includes('ring')) return 'ring';
+    if(h.includes('target')||h.includes('bull')) return 'target';
+    if(h.includes('arrow'))                    return 'arrow';
+    return 'circle';
+  }
+
+  // Fallback when KML Placemark has no style: guess shape+color from name
+  function inferPointStyle(name){
+    const n = stripDiacritics(name);
+    if(n.includes('tram')) return { color:'#e0a23a', label:'Trạm bơm',      iconShape:'paddle'  };
+    if(n.includes('cong')) return { color:'#4fb6e8', label:'Cống',           iconShape:'diamond' };
+    if(n.includes('moc'))  return { color:'#c4a3e8', label:'Mốc chỉ giới',   iconShape:'pushpin' };
+    if(n.includes('ho'))   return { color:'#3fb6a8', label:'Hồ chứa',        iconShape:'water'   };
+    return                        { color:'#9fb0bc', label:'Điểm công trình', iconShape:'circle'  };
+  }
+
+  // Build a Leaflet DivIcon from shape name + CSS color + KML scale.
+  // shape  : one of 14 names matched from KML href or inferred from Placemark name.
+  // color  : CSS hex string (#rrggbb), already converted from KML's aabbggrr.
+  // scale  : float from KML <IconStyle><scale>, default 1.0.
+  function makeSvgIcon(shape, color, scale){
+    const c = color||'#9fb0bc';
+    const sz = Math.round(24 * Math.max(0.6, Math.min(2.0, parseFloat(scale)||1)));
+    let svgHtml, anchor;
+
+    switch(shape){
+      case 'pushpin':
+        anchor=[Math.round(sz*0.3),sz];
+        svgHtml=`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24"><ellipse cx="10" cy="8" rx="8" ry="8" fill="${c}" stroke="#fff" stroke-width="1.5"/><line x1="10" y1="16" x2="10" y2="24" stroke="${c}" stroke-width="3" stroke-linecap="round"/><circle cx="10" cy="8" r="3" fill="#fff" fill-opacity="0.45"/></svg>`;
+        break;
+      case 'paddle':
+        anchor=[sz/2,sz];
+        svgHtml=`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24"><circle cx="12" cy="9" r="8" fill="${c}" stroke="#fff" stroke-width="1.5"/><line x1="12" y1="17" x2="12" y2="24" stroke="${c}" stroke-width="3" stroke-linecap="round"/><circle cx="12" cy="9" r="3.5" fill="#fff" fill-opacity="0.35"/></svg>`;
+        break;
+      case 'water':
+        anchor=[sz/2,sz];
+        svgHtml=`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24"><path d="M12 2C12 2 4 11 4 16A8 8 0 0 0 20 16C20 11 12 2 12 2Z" fill="${c}" stroke="#fff" stroke-width="1.5"/><ellipse cx="9" cy="14" rx="2" ry="3" fill="#fff" fill-opacity="0.35"/></svg>`;
+        break;
+      case 'triangle':
+        anchor=[sz/2,sz];
+        svgHtml=`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24"><polygon points="12,2 22,22 2,22" fill="${c}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+        break;
+      case 'diamond':
+        anchor=[sz/2,sz/2];
+        svgHtml=`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24"><polygon points="12,2 22,12 12,22 2,12" fill="${c}" stroke="#fff" stroke-width="1.5"/></svg>`;
+        break;
+      case 'star':
+        anchor=[sz/2,sz/2];
+        svgHtml=`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9" fill="${c}" stroke="#fff" stroke-width="1"/></svg>`;
+        break;
+      case 'square':
+        anchor=[sz/2,sz/2];
+        svgHtml=`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" fill="${c}" stroke="#fff" stroke-width="1.5"/></svg>`;
+        break;
+      case 'cross':
+        anchor=[sz/2,sz/2];
+        svgHtml=`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24"><path d="M10 2h4v8h8v4h-8v8h-4v-8H2v-4h8z" fill="${c}" stroke="#fff" stroke-width="1"/></svg>`;
+        break;
+      case 'flag':
+        anchor=[2,sz];
+        svgHtml=`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24"><line x1="3" y1="2" x2="3" y2="22" stroke="${c}" stroke-width="2.5" stroke-linecap="round"/><path d="M3 3L20 8L3 14Z" fill="${c}" stroke="#fff" stroke-width="1"/></svg>`;
+        break;
+      case 'info':
+        anchor=[sz/2,sz/2];
+        svgHtml=`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="${c}" stroke="#fff" stroke-width="1.5"/><text x="12" y="17" text-anchor="middle" font-size="14" font-weight="bold" fill="#fff" font-family="sans-serif">i</text></svg>`;
+        break;
+      case 'ring':
+        anchor=[sz/2,sz/2];
+        svgHtml=`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="${c}" stroke-width="4"/><circle cx="12" cy="12" r="4" fill="${c}"/></svg>`;
+        break;
+      case 'target':
+        anchor=[sz/2,sz/2];
+        svgHtml=`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="${c}" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="none" stroke="${c}" stroke-width="2"/><circle cx="12" cy="12" r="2.5" fill="${c}"/></svg>`;
+        break;
+      case 'arrow':
+        anchor=[sz/2,sz/2];
+        svgHtml=`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24"><polygon points="12,2 22,22 12,17 2,22" fill="${c}" stroke="#fff" stroke-width="1.5"/></svg>`;
+        break;
+      default: // circle
+        anchor=[sz/2,sz/2];
+        svgHtml=`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="${c}" stroke="#fff" stroke-width="2"/><circle cx="9" cy="9" r="3" fill="#fff" fill-opacity="0.3"/></svg>`;
+    }
+    return L.divIcon({ html:svgHtml, className:'', iconSize:[sz,sz], iconAnchor:anchor, popupAnchor:[0,-Math.round(sz/2)] });
+  }
+
+  function getDirectChildTagText(el, tag){
+    for(const child of Array.from(el.children)){
+      if(child.tagName === tag) return child.textContent.trim();
+    }
+    return '';
+  }
+
+  let folderTreeIdCounter = 0;
+
+  // Build a tree mirroring the KML's actual <Folder>/<Placemark> nesting, in document order —
+  // this is what Google Earth's "Places" panel shows, so we reproduce that structure for the legend.
+  function buildFolderTree(containerEl, namePrefix, depth){
+    const node = {
+      type: 'group',
+      name: getDirectChildTagText(containerEl, 'name') || namePrefix || 'Dữ liệu',
+      children: [],
+      id: 'grp-' + (folderTreeIdCounter++),
+      visible: true,
+      // depth 0 = the file-level root → always open so user sees it
+      // depth 1 = top-level Folders inside the file → open (so at least 1 level is visible)
+      // depth 2+ = nested sub-Folders → collapsed by default (avoids 200+ item flood)
+      collapsed: (depth||0) >= 2
+    };
+    for(const child of Array.from(containerEl.children)){
+      if(child.tagName === 'Folder'){
+        node.children.push(buildFolderTree(child, null, (depth||0)+1));
+      } else if(child.tagName === 'Placemark'){
+        node.children.push({ type:'placemark', placemarkEl: child, id: 'pmnode-' + (folderTreeIdCounter++) });
+      }
+    }
+    return node;
+  }
+
+  let kmlLoadCount = 0; // tracks how many KML/KMZ files have been loaded this session, for unique IDs and labeling
+
+  function parseAndLoadKML(kmlText, sourceLabel){
+    const xml = new DOMParser().parseFromString(kmlText, 'text/xml');
+    const placemarks = Array.from(xml.getElementsByTagName('Placemark'));
+    if(placemarks.length === 0){
+      kmlStatus.textContent = 'Không tìm thấy Placemark nào trong file' + (sourceLabel ? ` (${sourceLabel})` : '') + '.';
+      kmlStatus.className = 'status-line err';
+      return;
+    }
+    const stylesById = parseSharedStyles(xml);
+    const docEl = xml.getElementsByTagName('Document')[0] || xml.getElementsByTagName('kml')[0];
+    const fileTree = buildFolderTree(docEl, sourceLabel || `Dữ liệu KML ${kmlLoadCount+1}`);
+
+    // First load creates a root group; every subsequent load just adds its file-tree
+    // as a sibling subfolder, so the legend clearly shows which objects came from which file.
+    if(!folderTree){
+      folderTree = { type:'group', name:'Dữ liệu', children:[fileTree], id:'grp-root' };
+    } else {
+      folderTree.children.push(fileTree);
+    }
+    kmlLoadCount++;
+
+    let canalCount = 0, pointCount = 0;
+    const newBounds = [];
+
+    // Walk only the newly-added subtree (not the whole accumulated tree) so previously
+    // loaded features are left untouched and don't get duplicated or re-styled.
+    function walkAndBuildFeatures(node){
+      if(node.type === 'placemark'){
+        const pm = node.placemarkEl;
+        const featureIdx = kmlLoadCount + '-' + (canalCount + pointCount);
+        const name = getTagText(pm, 'name') || `Không tên ${featureIdx}`;
+        const ext = parseExtendedData(pm);
+        const kmlStyle = resolvePlacemarkStyle(pm, stylesById);
+
+        const lineNode = pm.getElementsByTagName('LineString')[0];
+        const pointNode = pm.getElementsByTagName('Point')[0];
+        const polygonNode = pm.getElementsByTagName('Polygon')[0];
+
+        if(lineNode){
+          const coordEl = lineNode.getElementsByTagName('coordinates')[0];
+          if(!coordEl) return;
+          const latlngs = parseCoordString(coordEl.textContent);
+          if(latlngs.length < 2) return;
+          const totalLength = lineLength(latlngs);
+
+          const lineColor = (kmlStyle && kmlStyle.lineColor) ? kmlStyle.lineColor.css : '#4fb6e8';
+          const lineWeight = (kmlStyle && kmlStyle.lineWidth) ? Math.max(2, kmlStyle.lineWidth) : 4;
+
+          const poly = L.polyline(latlngs.map(p=>[p.lat,p.lng]), {
+            color: lineColor, weight: lineWeight, opacity: 0.9
+          }).addTo(canalLayerGroup);
+
+          const feature = { id: 'canal-'+featureIdx, name, type:'canal', layer: poly, latlngs, totalLength, ext, baseColor: lineColor, baseWeight: lineWeight, visible:true, treeNodeId: node.id };
+          node.featureRef = feature;
+          allFeatures.push(feature);
+          canalCount++;
+          newBounds.push(poly.getBounds());
+
+          poly.on('mouseover', ()=> { if(feature.visible) poly.setStyle({ weight:lineWeight+2 }); });
+          poly.on('mouseout', ()=> { if(feature.visible) poly.setStyle({ weight:lineWeight, color:lineColor }); });
+          poly.on('click', (e)=> handleCanalClick(feature, e.latlng));
+
+        } else if(polygonNode){
+          // Polygon (hồ chứa, vùng bảo vệ, mặt bằng công trình...)
+          const outerEl = polygonNode.getElementsByTagName('outerBoundaryIs')[0] || polygonNode;
+          const coordEl = outerEl.getElementsByTagName('coordinates')[0];
+          if(!coordEl) return;
+          const latlngs = parseCoordString(coordEl.textContent);
+          if(latlngs.length < 3) return;
+
+          const fillColor = (kmlStyle && kmlStyle.polyColor) ? kmlStyle.polyColor.css :
+                            (kmlStyle && kmlStyle.lineColor) ? kmlStyle.lineColor.css : '#3fb6a8';
+          const lineColor = (kmlStyle && kmlStyle.lineColor) ? kmlStyle.lineColor.css : fillColor;
+          const alpha = (kmlStyle && kmlStyle.polyColor) ? (kmlStyle.polyColor.alpha||0.4) : 0.35;
+
+          const polygon = L.polygon(latlngs.map(p=>[p.lat,p.lng]), {
+            color: lineColor, weight: 2, fillColor, fillOpacity: alpha, opacity: 0.9
+          }).addTo(canalLayerGroup);
+
+          const center = polygon.getBounds().getCenter();
+          const feature = { id: 'polygon-'+featureIdx, name, type:'canal', layer: polygon,
+            latlngs, totalLength: 0, ext, baseColor: fillColor, baseWeight: 2, visible:true, treeNodeId: node.id };
+          node.featureRef = feature;
+          allFeatures.push(feature);
+          canalCount++;
+          newBounds.push(polygon.getBounds());
+
+          polygon.on('click', (e)=> handleCanalClick(feature, e.latlng));
+
+        } else if(pointNode){
+          const coordEl = pointNode.getElementsByTagName('coordinates')[0];
+          if(!coordEl) return;
+          const pts = parseCoordString(coordEl.textContent);
+          if(pts.length === 0) return;
+          const p = pts[0];
+
+          // Resolve icon: KML style takes priority over name-based inference
+          const inferred = inferPointStyle(name);
+          const iconHref  = (kmlStyle && kmlStyle.iconHref)  ? kmlStyle.iconHref  : '';
+          const iconScale = (kmlStyle && kmlStyle.iconScale) ? kmlStyle.iconScale : 1;
+          const pointColor = (kmlStyle && kmlStyle.iconColor) ? kmlStyle.iconColor.css : inferred.color;
+          // Use href shape if KML provides one, otherwise fall back to name-inferred shape
+          const iconShape = iconHref ? getIconShapeFromHref(iconHref) : inferred.iconShape;
+
+          const marker = L.marker([p.lat,p.lng], {
+            icon: makeSvgIcon(iconShape, pointColor, iconScale)
+          }).addTo(pointLayerGroup);
+
+          const feature = { id: 'point-'+featureIdx, name, type:'point', layer: marker, latlng:p, ext, kindLabel: inferred.label, pointColor, visible:true, treeNodeId: node.id };
+          node.featureRef = feature;
+          allFeatures.push(feature);
+          pointCount++;
+          newBounds.push(L.latLng(p.lat,p.lng).toBounds(50));
+
+          marker.on('click', ()=> handlePointClick(feature));
+        }
+      } else {
+        node.children.forEach(walkAndBuildFeatures);
+      }
+    }
+    walkAndBuildFeatures(fileTree);
+
+    if(newBounds.length){
+      let combined = newBounds[0];
+      newBounds.forEach(b=> combined = combined.extend(b));
+      map.fitBounds(combined, { padding:[40,40] });
+    }
+
+    const totalCanals = allFeatures.filter(f=>f.type==='canal').length;
+    const totalPoints = allFeatures.filter(f=>f.type==='point').length;
+    kmlStatus.textContent = `Đã nạp thêm ${canalCount} tuyến kênh và ${pointCount} điểm công trình${sourceLabel ? ` (từ ${sourceLabel})` : ''}. Tổng cộng hiện có ${totalCanals} kênh, ${totalPoints} điểm.`;
+    kmlStatus.className = 'status-line ok';
+    renderSearchIndexHint();
+    renderLegendTree();
+  }
+
+  /* ===================== EXCEL PARSING ===================== */
+  const xlsxInput = document.getElementById('xlsx-input');
+  const xlsxStatus = document.getElementById('xlsx-status');
+  const xlsxLabel = document.getElementById('xlsx-label');
+
+  // Synthetic column key used when sheet name is injected as the canal name
+  const INJECTED_CANAL_COL = '__sheetNameAsCanal__';
+
+  // Scan every sheet and return all that have from/to/person columns (Tên kênh is OPTIONAL).
+  // When Tên kênh is absent, the sheet name itself becomes the canal name —
+  // this is the user's format: one sheet per canal.
+  // Scan rows to find the first row that looks like a real data header
+  // (has at least "từ k", "đến k", "người phụ trách" or similar columns).
+  // This handles files where the first 1-3 rows are titles/notes.
+  function findHeaderRow(sheet){
+    const raw = XLSX.utils.sheet_to_json(sheet, { header:1, defval:'' });
+    for(let i=0; i<Math.min(raw.length, 10); i++){
+      const rowStr = raw[i].join('|').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
+      const hasFrom   = /tu\s*k|from|bat\s*dau|k\s*bat/.test(rowStr);
+      const hasTo     = /den\s*k|to\b|ket\s*thuc|k\s*ket/.test(rowStr);
+      const hasPerson = /nguoi|person|phu\s*trach/.test(rowStr);
+      if(hasFrom && hasTo && hasPerson){
+        // Found header at row i — re-parse with this as header
+        const headerRow = raw[i];
+        const dataRows = raw.slice(i+1).filter(r => r.some(c=>c!=='')).map(r => {
+          const obj = {};
+          headerRow.forEach((h,j) => { if(h!=='') obj[String(h)] = r[j]??''; });
+          return obj;
+        });
+        return dataRows;
+      }
+    }
+    // Fallback: use default sheet_to_json (first row as header)
+    return XLSX.utils.sheet_to_json(sheet, { defval:'' });
+  }
+
+  function pickAllDataSheets(wb){
+    const result = [];
+    for(const sheetName of wb.SheetNames){
+      const sheet = wb.Sheets[sheetName];
+      const rows = findHeaderRow(sheet);
+      if(!rows.length) continue;
+      const sample = rows[0];
+      const nameKey = findKey(sample, ['tenkenh','kenh','tuyen','canal','tentuyenkenh','tuyenkenh']); // optional
+      const fromKey = findKey(sample, ['tuk','kbatdau','tukbatdau','tu','from','batdau','fromk'], [nameKey]);
+      const toKey   = findKey(sample, ['denk','kketthuc','denkketthuc','den','to','ketthuc','tok'], [nameKey, fromKey]);
+      const personKey = findKey(sample, ['nguoiphutrach','phutrach','nguoiquanly','person'], [nameKey, fromKey, toKey]);
+      if(fromKey && toKey && personKey){
+        result.push({ sheetName, rows, nameKey });
+      }
+    }
+    return result;
+  }
+
+  function processXlsxBuffer(buf){
+    const wb = XLSX.read(buf, { type: 'array' });
+    const dataSheets = pickAllDataSheets(wb);
+    if(dataSheets.length === 0){
+      xlsxStatus.textContent = `Không tìm thấy sheet nào có đủ cột (K bắt đầu / K kết thúc / Người phụ trách) trong số ${wb.SheetNames.length} sheet: ${wb.SheetNames.join(', ')}.`;
+      xlsxStatus.className = 'status-line err';
+      return;
+    }
+    // Merge rows from all valid sheets. When a sheet has no Tên kênh column,
+    // inject the sheet name as a synthetic canal-name column on every row.
+    const mergedRows = [];
+    dataSheets.forEach(s => {
+      if(s.nameKey){
+        mergedRows.push(...s.rows);
+      } else {
+        s.rows.forEach(row => mergedRows.push({ ...row, [INJECTED_CANAL_COL]: s.sheetName }));
+      }
+    });
+    const sheetNamesNote = dataSheets.length > 1
+      ? `${dataSheets.length} sheet (${dataSheets.map(s=>s.sheetName).join(', ')})`
+      : (wb.SheetNames.length > 1 ? dataSheets[0].sheetName : null);
+    loadPersonData(mergedRows, sheetNamesNote);
+  }
+
+  xlsxInput.addEventListener('change', async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    xlsxLabel.textContent = file.name;
+    try{
+      const buf = await file.arrayBuffer();
+      processXlsxBuffer(buf);
+    }catch(err){
+      console.error(err);
+      xlsxStatus.textContent = 'Lỗi khi đọc file Excel: ' + err.message;
+      xlsxStatus.className = 'status-line err';
+    }
+  });
+
+  async function loadXlsxFromUrl(url){
+    xlsxLabel.textContent = 'Đang tải từ liên kết…';
+    xlsxStatus.textContent = 'Đang tải dữ liệu người phụ trách từ liên kết…';
+    xlsxStatus.className = 'status-line';
+    try{
+      const res = await fetch(url, { cache: 'no-store' });
+      if(!res.ok) throw new Error('Không tải được file (HTTP ' + res.status + ')');
+      const buf = await res.arrayBuffer();
+      processXlsxBuffer(buf);
+      xlsxLabel.textContent = 'Đã tải từ liên kết chia sẻ';
+    }catch(err){
+      console.error(err);
+      xlsxStatus.textContent = 'Lỗi khi tải Excel từ liên kết: ' + err.message + '. Kiểm tra lại liên kết, hoặc nạp file thủ công.';
+      xlsxStatus.className = 'status-line err';
+    }
+  }
+
+  function findKey(row, candidates, excludeKeys){
+    const keys = Object.keys(row).filter(k => !(excludeKeys||[]).includes(k));
+    for(const k of keys){
+      const nk = stripDiacritics(k).replace(/[^a-z0-9]/g,'');
+      for(const c of candidates){
+        if(nk === c) return k;
+      }
+    }
+    // fallback: partial match, but require the candidate to be reasonably specific
+    for(const k of keys){
+      const nk = stripDiacritics(k).replace(/[^a-z0-9]/g,'');
+      for(const c of candidates){
+        if(c.length >= 3 && nk.includes(c)) return k;
+      }
+    }
+    return null;
+  }
+
+  function parseStationValue(raw){
+    // accepts "K0+000", "K1+101", "0+500", "500", 500
+    if(typeof raw === 'number') return raw;
+    const s = String(raw).trim();
+    const kPlus = s.match(/k?\s*(\d+)\s*\+\s*(\d+)/i);
+    if(kPlus) return parseInt(kPlus[1],10)*1000 + parseInt(kPlus[2],10);
+    const num = parseFloat(s.replace(/[^\d.]/g,''));
+    return isNaN(num) ? null : num;
+  }
+
+  function loadPersonData(rows, sheetNameNote){
+    if(!rows.length){
+      xlsxStatus.textContent = 'File Excel không có dữ liệu.';
+      xlsxStatus.className = 'status-line err';
+      return;
+    }
+    const sample = rows[0];
+    // Canal name key: prefer the real Tên kênh column; fall back to the injected
+    // synthetic column (set by processXlsxBuffer when sheet name is used as canal name).
+    const nameKey = findKey(sample, ['tenkenh','kenh','tuyen','canal']) || INJECTED_CANAL_COL;
+    const fromKey = findKey(sample, ['kbatdau','tukbatdau','tu','from','batdau'], [nameKey]);
+    const toKey = findKey(sample, ['kketthuc','denkketthuc','den','to','ketthuc'], [nameKey, fromKey]);
+    const personKey = findKey(sample, ['nguoiphutrach','phutrach','nguoiquanly','person'], [nameKey, fromKey, toKey]);
+    const descKey = findKey(sample, ['mota','ghichu','note','description'], [nameKey, fromKey, toKey, personKey]);
+
+    if(!fromKey || !toKey || !personKey){
+      xlsxStatus.textContent = `Không nhận diện đủ cột. Cần: K bắt đầu / K kết thúc / Người phụ trách (cột Tên kênh không bắt buộc nếu dùng tên sheet). Đã tìm thấy: ${fromKey||'?'} / ${toKey||'?'} / ${personKey||'?'}.`;
+      xlsxStatus.className = 'status-line err';
+      return;
+    }
+
+    // Append to whatever is already loaded (from a previous Excel file or a previous
+    // sheet in this same workbook) instead of wiping it — so loading multiple files,
+    // or a workbook with several canal sheets, accumulates rather than replaces.
+    // Dedup guards against accidentally loading the exact same file/sheet twice.
+    let loaded = 0, skipped = 0, duplicates = 0;
+
+    rows.forEach(row=>{
+      const canalNameRaw = String(row[nameKey]||'').trim();
+      const fromM = parseStationValue(row[fromKey]);
+      const toM = parseStationValue(row[toKey]);
+      const person = String(row[personKey]||'').trim();
+      const desc = descKey ? String(row[descKey]||'').trim() : '';
+      if(!canalNameRaw || fromM===null || toM===null || !person){ skipped++; return; }
+      if(toM < fromM){ skipped++; return; }
+      const key = stripDiacritics(canalNameRaw);
+      const segDedupKey = key + '|' + fromM + '|' + toM + '|' + stripDiacritics(person);
+      if(loadedSegmentKeys.has(segDedupKey)){ duplicates++; return; }
+      loadedSegmentKeys.add(segDedupKey);
+      if(!personSegments[key]) personSegments[key] = [];
+      personSegments[key].push({ from_m: fromM, to_m: toM, person, desc, raw_canal_name: canalNameRaw });
+      loaded++;
+    });
+
+    Object.values(personSegments).forEach(arr=> arr.sort((a,b)=>a.from_m-b.from_m));
+
+    // validate gaps / overlaps per canal, build a warnings summary (recomputed across ALL loaded data)
+    const warnings = [];
+    Object.entries(personSegments).forEach(([key, segs])=>{
+      const label = segs[0].raw_canal_name;
+      for(let i=0;i<segs.length-1;i++){
+        const cur = segs[i], next = segs[i+1];
+        if(next.from_m > cur.to_m){
+          warnings.push(`${label}: hở từ ${formatStation(cur.to_m)} đến ${formatStation(next.from_m)}`);
+        } else if(next.from_m < cur.to_m){
+          warnings.push(`${label}: chồng lấn ${formatStation(next.from_m)}–${formatStation(cur.to_m)} (${cur.person} / ${next.person})`);
+        }
+      }
+    });
+
+    const canalCountInExcel = Object.keys(personSegments).length;
+    let msg = `Đã nạp thêm ${loaded} đoạn phụ trách${sheetNameNote ? ` (từ sheet: ${sheetNameNote})` : ''}. Tổng cộng hiện có ${canalCountInExcel} tuyến kênh có dữ liệu phụ trách.`;
+    if(skipped) msg += ` (${skipped} dòng bị bỏ qua do thiếu/sai dữ liệu)`;
+    if(duplicates) msg += ` (${duplicates} dòng trùng lặp với dữ liệu đã có, đã bỏ qua)`;
+    if(warnings.length){
+      msg += ` ⚠ ${warnings.length} cảnh báo hở/chồng đoạn — xem chi tiết khi click vào kênh đó.`;
+      xlsxStatus.className = 'status-line err';
+    } else {
+      xlsxStatus.className = 'status-line ok';
+    }
+    xlsxStatus.textContent = msg;
+    segmentWarnings = warnings;
+  }
+
+  /* ===================== GEOMETRY HELPERS ===================== */
+  function haversine(a, b){
+    const R = 6371000;
+    const toRad = d => d*Math.PI/180;
+    const dLat = toRad(b.lat-a.lat);
+    const dLon = toRad(b.lng-a.lng);
+    const s = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLon/2)**2;
+    return 2*R*Math.asin(Math.sqrt(s));
+  }
+
+  function nearestPointOnLine(latlngs, click){
+    const R = 6371000;
+    const lat0 = click.lat * Math.PI/180;
+    const toXY = (lat,lng)=>({ x: (lng*Math.PI/180)*R*Math.cos(lat0), y: (lat*Math.PI/180)*R });
+    const pXY = toXY(click.lat, click.lng);
+
+    let cumulative = 0;
+    let best = { dist: Infinity, cumDist: 0, point: latlngs[0] };
+    for(let i=0;i<latlngs.length-1;i++){
+      const A = latlngs[i], B = latlngs[i+1];
+      const aXY = toXY(A.lat,A.lng), bXY = toXY(B.lat,B.lng);
+      const segLen = Math.hypot(bXY.x-aXY.x, bXY.y-aXY.y);
+      const dx = bXY.x-aXY.x, dy = bXY.y-aXY.y;
+      const lenSq = dx*dx+dy*dy || 1e-9;
+      let t = ((pXY.x-aXY.x)*dx + (pXY.y-aXY.y)*dy)/lenSq;
+      t = Math.max(0, Math.min(1,t));
+      const projXY = { x:aXY.x+t*dx, y:aXY.y+t*dy };
+      const d = Math.hypot(pXY.x-projXY.x, pXY.y-projXY.y);
+      const cumAtProj = cumulative + t*segLen;
+      if(d < best.dist){
+        const projLat = A.lat + t*(B.lat-A.lat);
+        const projLng = A.lng + t*(B.lng-A.lng);
+        best = { dist:d, cumDist:cumAtProj, point:{lat:projLat,lng:projLng} };
+      }
+      cumulative += segLen;
+    }
+    return best;
+  }
+
+  function formatStation(meters){
+    const m = Math.max(0, Math.round(meters));
+    const km = Math.floor(m/1000);
+    const rem = m % 1000;
+    return `K${km}+${String(rem).padStart(3,'0')}`;
+  }
+
+  function findResponsible(stationM, segments){
+    if(!segments || segments.length===0) return { person:null, reason:'no-data' };
+    for(const s of segments){
+      if(stationM >= s.from_m && stationM <= s.to_m) return { person: s.person, reason:'ok', from_m: s.from_m, to_m: s.to_m, desc: s.desc };
+    }
+    if(stationM < segments[0].from_m) return { person:null, reason:'before-first' };
+    if(stationM > segments[segments.length-1].to_m) return { person:null, reason:'after-last' };
+    return { person:null, reason:'gap' };
+  }
+
+  /* ===================== CLICK HANDLERS ===================== */
+  function handleCanalClick(feature, clickLatLng){
+    if(measureMode || drawMode) return;
+    // Polygon: use center instead of nearest-on-line
+    let station, near;
+    if(feature.latlngs && feature.latlngs.length >= 2 && feature.totalLength > 0){
+      near = nearestPointOnLine(feature.latlngs, clickLatLng);
+      station = formatStation(near.cumDist);
+    } else {
+      // Polygon or zero-length — show center coords
+      const bounds = feature.layer.getBounds ? feature.layer.getBounds() : null;
+      const center = bounds ? bounds.getCenter() : clickLatLng;
+      near = { point: { lat: center.lat, lng: center.lng }, cumDist: 0 };
+      station = null;
+    }
+    const key = stripDiacritics(feature.name);
+    // Try progressively looser matches:
+    // 1. exact stripped key
+    let segments = personSegments[key];
+    if(!segments){
+      // 2. substring match
+      const subKey = Object.keys(personSegments).find(k => k.includes(key) || key.includes(k));
+      if(subKey) segments = personSegments[subKey];
+    }
+    if(!segments){
+      // 3. common-word score (≥2 words of 3+ chars in common)
+      const words = key.split(/\s+/).filter(w=>w.length>=3);
+      const allKeys = Object.keys(personSegments);
+      const best = allKeys.map(k=>({k, score: words.filter(w=>k.split(/\s+/).includes(w)).length}))
+                          .filter(x=>x.score>=2).sort((a,b)=>b.score-a.score)[0];
+      if(best) segments = personSegments[best.k];
+    }
+    const lookup = findResponsible(near.cumDist, segments||[]);
+
+    if(highlightMarker) map.removeLayer(highlightMarker);
+    if(station){
+      highlightMarker = L.circleMarker([near.point.lat, near.point.lng], {
+        radius:8, color:'#fff', weight:2, fillColor:'#e85d75', fillOpacity:1
+      }).addTo(map);
+    }
+    renderCanalInfo(feature, station, near, lookup);
+    openInfoOverlay();
+  }
+
+  function handlePointClick(feature){
+    if(measureMode || drawMode) return;
+    if(highlightMarker){ map.removeLayer(highlightMarker); highlightMarker=null; }
+    renderPointInfo(feature);
+    openInfoOverlay();
+  }
+
+  /* ===================== INFO PANEL RENDER ===================== */
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function renderCanalInfo(feature, station, near, lookup){
+    const panel = document.getElementById('info-panel');
+    let personHtml, segmentRangeHtml = '';
+    if(lookup.reason==='no-data')       personHtml=`<span style="color:var(--warn)">Chưa nạp dữ liệu phụ trách (Excel)</span>`;
+    else if(lookup.reason==='before-first') personHtml=`<span style="color:var(--warn)">Trước đoạn đầu tiên — chưa xác định</span>`;
+    else if(lookup.reason==='after-last')   personHtml=`<span style="color:var(--warn)">Sau đoạn cuối cùng — chưa xác định</span>`;
+    else if(lookup.reason==='gap')          personHtml=`<span style="color:var(--warn)">Vị trí này nằm trong khoảng hở giữa hai đoạn</span>`;
+    else {
+      personHtml = escapeHtml(lookup.person);
+      if(lookup.from_m!==undefined)
+        segmentRangeHtml = `<div class="info-row"><span class="k">Đoạn phụ trách</span><span class="v">${formatStation(lookup.from_m)} → ${formatStation(lookup.to_m)}</span></div>`;
+      if(lookup.desc)
+        segmentRangeHtml += `<div class="ext-row" style="margin-top:8px;"><b>Mô tả đoạn:</b> ${escapeHtml(lookup.desc)}</div>`;
+    }
+    let extHtml = '';
+    if(feature.ext && feature.ext.length)
+      extHtml = `<div class="ext-data">`+feature.ext.map(e=>`<div class="ext-row"><b>${escapeHtml(e.k)}:</b> ${escapeHtml(e.v)}</div>`).join('')+`</div>`;
+    const relevantWarnings=(segmentWarnings||[]).filter(w=>w.startsWith(feature.name+':'));
+    const warningHtml = relevantWarnings.length
+      ? `<div class="note-box" style="background:#e0a23a22;border-color:#e0a23a44;color:var(--warn);">⚠ ${relevantWarnings.map(w=>escapeHtml(w)).join('<br>')}</div>` : '';
+
+    panel.innerHTML=`
+      <div class="info-card">
+        <span class="tag canal">Kênh / tuyến</span>
+        <h2>${escapeHtml(feature.name)}</h2>
+        ${feature.totalLength>0?`<div class="info-row"><span class="k">Chiều dài</span><span class="v">${feature.totalLength.toFixed(0)} m</span></div>`:''}
+        ${station?`<div class="info-row"><span class="k">Vị trí chọn</span><span class="v big">${station}</span></div>`:''}
+        <div class="info-row"><span class="k">Tọa độ</span><span class="v">${near.point.lat.toFixed(6)}, ${near.point.lng.toFixed(6)}</span></div>
+        <div class="info-row"><span class="k">Người phụ trách</span><span class="v person">${personHtml}</span></div>
+        ${segmentRangeHtml}${extHtml}${warningHtml}
+        <a href="bien-ban.html?lat=${near.point.lat.toFixed(6)}&lng=${near.point.lng.toFixed(6)}&ct=${encodeURIComponent(feature.name)}&km=${encodeURIComponent(station||'')}"
+           style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;
+           background:#c0392b;color:#fff;padding:12px;border-radius:8px;
+           text-decoration:none;font-weight:700;font-size:13.5px;">
+          ⚠️ Lập biên bản vi phạm tại đây
+        </a>
+      </div>`;
+  }
+
+  function renderPointInfo(feature){
+    const panel = document.getElementById('info-panel');
+    let extHtml='';
+    if(feature.ext && feature.ext.length)
+      extHtml=`<div class="ext-data">`+feature.ext.map(e=>`<div class="ext-row"><b>${escapeHtml(e.k)}:</b> ${escapeHtml(e.v)}</div>`).join('')+`</div>`;
+
+    panel.innerHTML=`
+      <div class="info-card">
+        <span class="tag point">${escapeHtml(feature.kindLabel||'Điểm công trình')}</span>
+        <h2>${escapeHtml(feature.name)}</h2>
+        <div class="info-row"><span class="k">Tọa độ</span><span class="v">${feature.latlng.lat.toFixed(6)}, ${feature.latlng.lng.toFixed(6)}</span></div>
+        ${extHtml}
+        ${(!feature.ext||!feature.ext.length)?`<div class="note-box">Bạn có thể thêm ghi chú vào thẻ &lt;description&gt; của Placemark này trong KML/KMZ — nội dung sẽ tự hiện ở đây.</div>`:''}
+        <a href="bien-ban.html?lat=${feature.latlng.lat.toFixed(6)}&lng=${feature.latlng.lng.toFixed(6)}&ct=${encodeURIComponent(feature.name)}"
+           style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;
+           background:#c0392b;color:#fff;padding:12px;border-radius:8px;
+           text-decoration:none;font-weight:700;font-size:13.5px;">
+          ⚠️ Lập biên bản vi phạm tại đây
+        </a>
+      </div>`;
+  }
+
+  /* ===================== SEARCH ===================== */
+  const searchInput  = document.getElementById('search-input');
+  const searchResults = document.getElementById('search-results');
+
+  searchInput.addEventListener('input', ()=>{
+    const q = stripDiacritics(searchInput.value);
+    searchResults.innerHTML='';
+    if(!q) return;
+    const matches = allFeatures.filter(f=> stripDiacritics(f.name).includes(q)).slice(0,30);
+    matches.forEach(f=>{
+      const div = document.createElement('div');
+      div.className='result-item';
+      const color = f.type==='canal' ? (f.baseColor||'var(--canal)') : (f.pointColor||'var(--gate)');
+      div.innerHTML=`<span class="dot" style="background:${color}"></span><span class="nm">${escapeHtml(f.name)}</span><span class="ty">${f.type==='canal'?'KÊNH':'ĐIỂM'}</span>`;
+      div.addEventListener('click', ()=>{
+        if(f.type==='canal'){
+          map.flyToBounds(f.layer.getBounds(), { padding:[60,60], duration:1.2 });
+          setTimeout(()=>{
+            f.layer.setStyle && f.layer.setStyle({ color:'#7fd4ec', weight:(f.baseWeight||4)+2 });
+            setTimeout(()=> f.layer.setStyle && f.layer.setStyle({ color:f.baseColor||'#4fb6e8', weight:f.baseWeight||4 }), 800);
+            const mid = f.latlngs ? f.latlngs[Math.floor(f.latlngs.length/2)] : f.layer.getBounds().getCenter();
+            handleCanalClick(f, mid); openInfoOverlay();
+          }, 800);
+        } else {
+          map.flyTo([f.latlng.lat, f.latlng.lng], 17, { duration:1.2 });
+          setTimeout(()=> handlePointClick(f), 600);
+        }
+      });
+      searchResults.appendChild(div);
+    });
+    if(matches.length===0) searchResults.innerHTML='<div class="status-line">Không tìm thấy kết quả phù hợp.</div>';
+  });
+
+  function renderSearchIndexHint(){ /* placeholder */ }
+
+  /* ===================== LEGEND TREE (Google-Earth-style Places panel) ===================== */
+  const legendTreeEl = document.getElementById('legend-tree');
+
+  function setFeatureVisible(feature, visible){
+    feature.visible = visible;
+    const onMap = (feature.type === 'canal') ? canalLayerGroup.hasLayer(feature.layer) : pointLayerGroup.hasLayer(feature.layer);
+    if(visible && !onMap){
+      (feature.type === 'canal' ? canalLayerGroup : pointLayerGroup).addLayer(feature.layer);
+    } else if(!visible && onMap){
+      (feature.type === 'canal' ? canalLayerGroup : pointLayerGroup).removeLayer(feature.layer);
+    }
+  }
+
+  function setNodeVisibleRecursive(node, visible){
+    if(node.type === 'placemark'){
+      if(node.featureRef) setFeatureVisible(node.featureRef, visible);
+    } else {
+      node.children.forEach(c => setNodeVisibleRecursive(c, visible));
+    }
+  }
+
+  // 'all' | 'none' | 'partial' — used to render the tri-state folder checkbox
+  function getNodeVisibilityState(node){
+    const states = [];
+    (function collect(n){
+      if(n.type === 'placemark'){ if(n.featureRef) states.push(n.featureRef.visible); }
+      else n.children.forEach(collect);
+    })(node);
+    if(states.length === 0) return 'none';
+    if(states.every(s => s)) return 'all';
+    if(states.every(s => !s)) return 'none';
+    return 'partial';
+  }
+
+  function findTreeNodeById(node, id){
+    if(node.id === id) return node;
+    if(node.type === 'group'){
+      for(const c of node.children){
+        const found = findTreeNodeById(c, id);
+        if(found) return found;
+      }
+    }
+    return null;
+  }
+
+  function pointSwatchColor(node){
+    return node.featureRef ? node.featureRef.layer.options.fillColor : '#9fb0bc';
+  }
+
+  function renderTreeNodeHtml(node, depth){
+    if(node.type === 'placemark'){
+      const f = node.featureRef;
+      if(!f) return '';
+      const color = f.type === 'canal' ? f.baseColor : pointSwatchColor(node);
+      const swatchShape = f.type === 'canal' ? '' : 'dot-shape';
+      const hiddenClass = f.visible ? '' : 'is-hidden';
+      return `
+        <div class="tree-row ${hiddenClass}" data-node-id="${node.id}">
+          <span class="tree-expand-spacer"></span>
+          <input type="checkbox" data-node-id="${node.id}" ${f.visible ? 'checked' : ''} />
+          <span class="swatch ${swatchShape}" style="background:${color}"></span>
+          <span class="tree-label" data-node-id="${node.id}" title="${escapeHtml(node.name||f.name)}">${escapeHtml(f.name)}</span>
+        </div>`;
+    }
+    // group node
+    const state = getNodeVisibilityState(node);
+    const childrenHtml = node.children.map(c => renderTreeNodeHtml(c, depth+1)).join('');
+    if(!childrenHtml) return '';
+    // Delete button only shown at the file level (depth 0 = direct children of folderTree root)
+    const deleteBtn = depth === 0
+      ? `<button class="tree-delete-btn" data-delete-node="${node.id}" title="Xóa file này khỏi bản đồ">✕</button>`
+      : '';
+    return `
+      <div class="tree-node">
+        <div class="tree-row is-folder" data-node-id="${node.id}">
+          <button class="tree-expand-btn ${node.collapsed?'collapsed':''}" data-toggle-collapse="${node.id}">▾</button>
+          <input type="checkbox" data-node-id="${node.id}"
+            ${state==='all' ? 'checked' : ''}
+            ${state==='partial' ? 'data-indeterminate="1"' : ''} />
+          <span class="tree-label" data-node-id="${node.id}" title="${escapeHtml(node.name)}">${escapeHtml(node.name)}</span>
+          ${deleteBtn}
+        </div>
+        <div class="tree-children ${node.collapsed?'collapsed':''}" data-children-of="${node.id}">${childrenHtml}</div>
+      </div>`;
+  }
+
+  // Remove all map layers belonging to a file-tree node (recursively walks its children)
+  function removeNodeLayers(node){
+    if(node.type === 'placemark' && node.featureRef){
+      const f = node.featureRef;
+      if(f.type === 'canal') canalLayerGroup.removeLayer(f.layer);
+      else pointLayerGroup.removeLayer(f.layer);
+      // Also remove from allFeatures index
+      const idx = allFeatures.indexOf(f);
+      if(idx !== -1) allFeatures.splice(idx, 1);
+    } else if(node.children){
+      node.children.forEach(removeNodeLayers);
+    }
+  }
+
+  function renderLegendTree(){
+    if(!folderTree){
+      legendTreeEl.innerHTML = `<div class="status-line">Nạp file KML/KMZ để xem danh sách kênh, cống, trạm theo đúng cấu trúc thư mục trong file của bạn.</div>`;
+      return;
+    }
+    legendTreeEl.innerHTML = folderTree.children.map(c => renderTreeNodeHtml(c, 0)).join('') || `<div class="status-line">Không có Placemark hợp lệ để hiển thị.</div>`;
+    legendTreeEl.querySelectorAll('input[data-indeterminate="1"]').forEach(cb => { cb.indeterminate = true; });
+  }
+
+  // Event delegation: one listener handles every checkbox / expand-button / label click,
+  // since the tree HTML gets fully rebuilt on each KML load.
+  legendTreeEl.addEventListener('change', (e)=>{
+    if(e.target.matches('input[type="checkbox"][data-node-id]')){
+      const node = findTreeNodeById(folderTree, e.target.dataset.nodeId);
+      if(!node) return;
+      setNodeVisibleRecursive(node, e.target.checked);
+      renderLegendTree();
+    }
+  });
+  legendTreeEl.addEventListener('click', (e)=>{
+    // Delete file button
+    const deleteBtn = e.target.closest('[data-delete-node]');
+    if(deleteBtn){
+      const nodeId = deleteBtn.dataset.deleteNode;
+      const idx = folderTree.children.findIndex(c => c.id === nodeId);
+      if(idx === -1) return;
+      const fileNode = folderTree.children[idx];
+      removeNodeLayers(fileNode);
+      folderTree.children.splice(idx, 1);
+      if(folderTree.children.length === 0) folderTree = null;
+      renderLegendTree();
+      // update kml status
+      const totalCanals = allFeatures.filter(f=>f.type==='canal').length;
+      const totalPoints = allFeatures.filter(f=>f.type==='point').length;
+      kmlStatus.textContent = totalCanals + totalPoints > 0
+        ? `Còn lại ${totalCanals} tuyến kênh và ${totalPoints} điểm công trình.`
+        : 'Chưa có dữ liệu bản đồ.';
+      kmlStatus.className = totalCanals + totalPoints > 0 ? 'status-line ok' : 'status-line';
+      return;
+    }
+
+    // Expand/collapse button
+    const expandBtn = e.target.closest('[data-toggle-collapse]');
+    if(expandBtn){
+      const node = findTreeNodeById(folderTree, expandBtn.dataset.toggleCollapse);
+      if(node){ node.collapsed = !node.collapsed; renderLegendTree(); }
+      return;
+    }
+
+    // Checkbox — handled by 'change' event, not here
+    if(e.target.matches('input[type="checkbox"]')) return;
+
+    // Click anywhere on a tree-row (not just the label) → fly to feature or folder bounds
+    const row = e.target.closest('.tree-row[data-node-id]');
+    if(!row) return;
+    const node = findTreeNodeById(folderTree, row.dataset.nodeId);
+    if(!node) return;
+
+    if(node.type === 'placemark' && node.featureRef){
+      const f = node.featureRef;
+      if(!f.visible) return; // don't fly to hidden features
+      if(f.type === 'canal'){
+        map.flyToBounds(f.layer.getBounds(), { padding:[60,60], duration:1.2 });
+        // show info panel after animation completes
+        const mid = f.latlngs[Math.floor(f.latlngs.length/2)];
+        setTimeout(()=> handleCanalClick(f, mid), 600);
+      } else {
+        map.flyTo([f.latlng.lat, f.latlng.lng], 17, { duration:1.2 });
+        setTimeout(()=> handlePointClick(f), 600);
+      }
+      if(isMobileLayout()) closeDrawer();
+
+    } else if(node.type === 'group'){
+      // Fly to the combined bounds of all visible features in this folder
+      const bounds = [];
+      (function collectBounds(n){
+        if(n.type==='placemark' && n.featureRef && n.featureRef.visible){
+          if(n.featureRef.type==='canal') bounds.push(n.featureRef.layer.getBounds());
+          else bounds.push(L.latLng(n.featureRef.latlng.lat, n.featureRef.latlng.lng).toBounds(100));
+        } else if(n.type==='group') n.children.forEach(collectBounds);
+      })(node);
+
+      if(bounds.length > 0){
+        let combined = bounds[0];
+        bounds.forEach(b=> combined = combined.extend(b));
+        map.flyToBounds(combined, { padding:[40,40], duration:1.2 });
+        if(isMobileLayout()) closeDrawer();
+      }
+    }
+  });
+
+  /* ===================== DRAW TOOL (vẽ & lưu) ===================== */
+  let drawMode = null; // 'point' | 'line' | null
+  let drawPoints = []; // points being drawn for current line
+  let drawPreviewLine = null;
+  let drawnFeatures = []; // {id, type:'point'|'line', name, kind, desc, color, latlngs/latlng, layer}
+  let pendingDrawData = null; // temp storage while popup is open
+  let drawIdCounter = 0;
+
+  const btnDrawPoint  = document.getElementById('btn-draw-point');
+  const btnDrawLine   = document.getElementById('btn-draw-line');
+  const btnDrawClear  = document.getElementById('btn-draw-clear');
+  const btnExportKml  = document.getElementById('btn-export-kml');
+  const btnSaveGithub = document.getElementById('btn-save-github');
+  const drawStatus    = document.getElementById('draw-status');
+  const drawListEl    = document.getElementById('draw-list');
+  const drawPopup     = document.getElementById('draw-popup');
+  const githubDialog  = document.getElementById('github-dialog');
+
+  function setDrawMode(mode){
+    if(drawMode === mode){ stopDraw(); return; }
+    stopMeasuring(true); // stop measure tool if active
+    stopDraw();
+    drawMode = mode;
+    btnDrawPoint.classList.toggle('active', mode==='point');
+    btnDrawLine.classList.toggle('active', mode==='line');
+    map.getContainer().style.cursor = 'crosshair';
+    if(mode === 'point') drawStatus.textContent = 'Click lên bản đồ để đặt điểm. Esc để hủy.';
+    if(mode === 'line')  drawStatus.textContent = 'Click các điểm dọc theo đường. Double-click hoặc Enter để kết thúc. Esc để hủy.';
+  }
+
+  function stopDraw(){
+    drawMode = null;
+    drawPoints = [];
+    btnDrawPoint.classList.remove('active');
+    btnDrawLine.classList.remove('active');
+    map.getContainer().style.cursor = '';
+    if(drawPreviewLine){ map.removeLayer(drawPreviewLine); drawPreviewLine = null; }
+    drawStatus.textContent = 'Chọn công cụ vẽ, click trên bản đồ.';
+  }
+
+  btnDrawPoint.addEventListener('click', ()=> setDrawMode('point'));
+  btnDrawLine.addEventListener('click',  ()=> setDrawMode('line'));
+
+  // Map click while drawing
+  map.on('click', (e)=>{
+    if(!drawMode) return;
+    if(drawMode === 'point'){
+      pendingDrawData = { type:'point', latlng: e.latlng };
+      document.getElementById('draw-popup-title').textContent = 'Thêm thông tin điểm';
+      document.getElementById('draw-type').value = 'Cống';
+      openDrawPopup();
+    } else if(drawMode === 'line'){
+      drawPoints.push(e.latlng);
+      if(drawPreviewLine) map.removeLayer(drawPreviewLine);
+      if(drawPoints.length >= 2){
+        drawPreviewLine = L.polyline(drawPoints, { color:'#e85d75', weight:3, dashArray:'6,5' }).addTo(map);
+      }
+    }
+  });
+
+  // Rubber-band preview for line
+  map.on('mousemove', (e)=>{
+    if(drawMode !== 'line' || drawPoints.length === 0) return;
+    if(drawPreviewLine) map.removeLayer(drawPreviewLine);
+    drawPreviewLine = L.polyline([...drawPoints, e.latlng], { color:'#e85d75', weight:2, dashArray:'4,5', opacity:.6 }).addTo(map);
+  });
+
+  map.on('dblclick', (e)=>{
+    if(drawMode !== 'line') return;
+    if(drawPoints.length < 2){ stopDraw(); return; }
+    pendingDrawData = { type:'line', latlngs: [...drawPoints] };
+    document.getElementById('draw-popup-title').textContent = 'Thêm thông tin đường';
+    document.getElementById('draw-type').value = 'Kênh';
+    if(drawPreviewLine){ map.removeLayer(drawPreviewLine); drawPreviewLine = null; }
+    openDrawPopup();
+  });
+
+  document.addEventListener('keydown', (e)=>{
+    if(drawMode){
+      if(e.key === 'Escape'){ stopDraw(); }
+      else if(e.key === 'Enter' && drawMode === 'line'){
+        if(drawPoints.length >= 2){
+          pendingDrawData = { type:'line', latlngs: [...drawPoints] };
+          document.getElementById('draw-popup-title').textContent = 'Thêm thông tin đường';
+          document.getElementById('draw-type').value = 'Kênh';
+          if(drawPreviewLine){ map.removeLayer(drawPreviewLine); drawPreviewLine = null; }
+          openDrawPopup();
+        }
+      }
+    }
+  });
+
+  // ---- Popup ----
+  function openDrawPopup(){
+    stopDraw();
+    document.getElementById('draw-name').value = '';
+    document.getElementById('draw-desc').value = '';
+    drawPopup.style.display = 'flex';
+    setTimeout(()=> document.getElementById('draw-name').focus(), 50);
+  }
+  function closeDrawPopup(){ drawPopup.style.display = 'none'; pendingDrawData = null; editingFeatureId = null; }
+
+  document.getElementById('draw-popup-cancel').addEventListener('click', closeDrawPopup);
+  drawPopup.addEventListener('click', (e)=>{ if(e.target === drawPopup) closeDrawPopup(); });
+
+  // editingFeatureId: null = popup is in "create new" mode; set to a feature id = popup is
+  // "edit existing" mode. A single Save handler branches on this instead of swapping
+  // onclick handlers (the old approach caused the Save button to call itself recursively
+  // via a synthetic .click() once an edit had happened, freezing the page on the next save).
+  let editingFeatureId = null;
+
+  document.getElementById('draw-popup-save').addEventListener('click', ()=>{
+    const name  = document.getElementById('draw-name').value.trim();
+    const kind  = document.getElementById('draw-type').value;
+    const desc  = document.getElementById('draw-desc').value.trim();
+    const color = document.getElementById('draw-color').value;
+    if(!name){ alert('Vui lòng nhập tên cho đối tượng.'); return; }
+
+    if(editingFeatureId){
+      // ---- Edit existing drawn feature ----
+      const feat = drawnFeatures.find(f=>f.id===editingFeatureId);
+      editingFeatureId = null;
+      if(!feat){ closeDrawPopup(); return; }
+      feat.name  = name;
+      feat.kind  = kind;
+      feat.desc  = desc;
+      feat.color = color;
+      if(feat.type === 'point') feat.layer.setStyle({ fillColor: feat.color });
+      else feat.layer.setStyle({ color: feat.color });
+      feat.layer.unbindTooltip();
+      feat.layer.bindTooltip(feat.name, { permanent:false, sticky: feat.type==='line' });
+      closeDrawPopup();
+      renderDrawList();
+      return;
+    }
+
+    // ---- Create new drawn feature ----
+    if(!pendingDrawData){ closeDrawPopup(); return; }
+
+    const id = 'draw-' + (++drawIdCounter);
+    let layer;
+    const feat = { id, name, kind, desc, color, type: pendingDrawData.type };
+
+    if(pendingDrawData.type === 'point'){
+      feat.latlng = pendingDrawData.latlng;
+      layer = L.circleMarker([feat.latlng.lat, feat.latlng.lng], {
+        radius:8, color:'#fff', weight:2, fillColor:color, fillOpacity:.95
+      }).addTo(map);
+      layer.bindTooltip(name, { permanent:false });
+      layer.on('click', ()=> openEditDrawFeature(id));
+    } else {
+      feat.latlngs = pendingDrawData.latlngs;
+      layer = L.polyline(feat.latlngs, { color, weight:4, opacity:.9 }).addTo(map);
+      layer.bindTooltip(name, { permanent:false, sticky:true });
+      layer.on('click', ()=> openEditDrawFeature(id));
+    }
+    feat.layer = layer;
+    drawnFeatures.push(feat);
+    closeDrawPopup();
+    renderDrawList();
+    updateDrawButtons();
+  });
+
+  function openEditDrawFeature(id){
+    const feat = drawnFeatures.find(f=>f.id===id);
+    if(!feat) return;
+    editingFeatureId = id;
+    pendingDrawData = null;
+    document.getElementById('draw-popup-title').textContent = 'Chỉnh sửa đối tượng';
+    document.getElementById('draw-name').value = feat.name;
+    document.getElementById('draw-type').value = feat.kind;
+    document.getElementById('draw-desc').value = feat.desc;
+    document.getElementById('draw-color').value = feat.color;
+    drawPopup.style.display = 'flex';
+    setTimeout(()=> document.getElementById('draw-name').focus(), 50);
+  }
+
+  function deleteDrawFeature(id){
+    const idx = drawnFeatures.findIndex(f=>f.id===id);
+    if(idx === -1) return;
+    map.removeLayer(drawnFeatures[idx].layer);
+    drawnFeatures.splice(idx, 1);
+    renderDrawList();
+    updateDrawButtons();
+  }
+
+  function renderDrawList(){
+    if(!drawnFeatures.length){ drawListEl.innerHTML = ''; return; }
+    drawListEl.innerHTML = drawnFeatures.map(f=>`
+      <div class="draw-item">
+        <span class="di-swatch" style="background:${f.color};${f.type==='line'?'border-radius:2px;':''}" ></span>
+        <span class="di-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+        <span class="di-type" style="font-size:9.5px;color:var(--text-2);margin-right:2px;">${escapeHtml(f.kind)}</span>
+        <button class="di-del" data-del="${f.id}">✕</button>
+      </div>`).join('');
+    drawListEl.querySelectorAll('[data-del]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); deleteDrawFeature(btn.dataset.del); });
+    });
+  }
+
+  function updateDrawButtons(){
+    const has = drawnFeatures.length > 0;
+    btnExportKml.style.display  = has ? '' : 'none';
+    btnSaveGithub.style.display = has ? '' : 'none';
+    btnDrawClear.style.display  = has ? '' : 'none';
+  }
+
+  btnDrawClear.addEventListener('click', ()=>{
+    if(!confirm('Xóa tất cả đối tượng đã vẽ?')) return;
+    drawnFeatures.forEach(f=> map.removeLayer(f.layer));
+    drawnFeatures = [];
+    renderDrawList();
+    updateDrawButtons();
+  });
+
+  // ---- Export KML ----
+  function cssToKmlColor(hex, alpha){
+    // CSS #rrggbb → KML ffbbggrr
+    const a = Math.round((alpha||1)*255).toString(16).padStart(2,'0');
+    const r = hex.slice(1,3), g = hex.slice(3,5), b = hex.slice(5,7);
+    return a + b + g + r;
+  }
+
+  function buildDrawnKml(){
+    const placemarks = drawnFeatures.map(f=>{
+      const styleId = `style-${f.id}`;
+      let styleXml, geometryXml;
+      if(f.type === 'point'){
+        styleXml = `<Style id="${styleId}"><IconStyle><color>${cssToKmlColor(f.color)}</color><scale>1</scale></IconStyle></Style>`;
+        geometryXml = `<Point><coordinates>${f.latlng.lng},${f.latlng.lat},0</coordinates></Point>`;
+      } else {
+        styleXml = `<Style id="${styleId}"><LineStyle><color>${cssToKmlColor(f.color)}</color><width>3</width></LineStyle></Style>`;
+        const coords = f.latlngs.map(p=>`${p.lng},${p.lat},0`).join(' ');
+        geometryXml = `<LineString><tessellate>1</tessellate><coordinates>${coords}</coordinates></LineString>`;
+      }
+      return `  ${styleXml}
+  <Placemark>
+    <name>${escapeXml(f.name)}</name>
+    <description>${escapeXml(f.desc)}</description>
+    <styleUrl>#${styleId}</styleUrl>
+    ${geometryXml}
+  </Placemark>`;
+    }).join('\n');
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>Dữ liệu vẽ thêm</name>
+${placemarks}
+</Document>
+</kml>`;
+  }
+
+  function escapeXml(s){
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  btnExportKml.addEventListener('click', ()=>{
+    const kmlStr = buildDrawnKml();
+    const blob = new Blob([kmlStr], { type:'application/vnd.google-earth.kml+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'du-lieu-ve-them.kml'; a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // ---- Save to GitHub ----
+  btnSaveGithub.addEventListener('click', ()=>{
+    // Pre-fill repo from current URL if on github.io
+    const m = window.location.hostname.match(/^(.+)\.github\.io$/);
+    if(m) document.getElementById('gh-repo').value = m[1] + '/' + window.location.pathname.split('/')[1];
+    githubDialog.style.display = 'flex';
+    setTimeout(()=> document.getElementById('gh-token').focus(), 50);
+  });
+  document.getElementById('gh-cancel').addEventListener('click', ()=>{ githubDialog.style.display='none'; });
+  githubDialog.addEventListener('click', (e)=>{ if(e.target===githubDialog) githubDialog.style.display='none'; });
+
+  document.getElementById('gh-confirm').addEventListener('click', async ()=>{
+    const token    = document.getElementById('gh-token').value.trim();
+    const repo     = document.getElementById('gh-repo').value.trim();
+    const filename = document.getElementById('gh-filename').value.trim();
+    const ghStatus = document.getElementById('gh-status');
+    if(!token || !repo || !filename){ ghStatus.textContent='Vui lòng điền đầy đủ thông tin.'; ghStatus.className='status-line err'; return; }
+
+    ghStatus.textContent = 'Đang kết nối GitHub…';
+    ghStatus.className = 'status-line';
+
+    try{
+      // Get current file SHA (needed to update existing file)
+      const getRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filename}`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+      });
+      let sha = null;
+      if(getRes.ok){ const data = await getRes.json(); sha = data.sha; }
+
+      const kmlStr = buildDrawnKml();
+      const content = btoa(unescape(encodeURIComponent(kmlStr)));
+      const body = { message: 'Cập nhật dữ liệu vẽ thêm', content, ...(sha ? { sha } : {}) };
+
+      const putRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filename}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if(putRes.ok){
+        ghStatus.textContent = '✅ Đã lưu lên GitHub thành công! Chờ ~1 phút để GitHub Pages cập nhật.';
+        ghStatus.className = 'status-line ok';
+      } else {
+        const err = await putRes.json();
+        throw new Error(err.message || putRes.status);
+      }
+    }catch(err){
+      ghStatus.textContent = 'Lỗi: ' + err.message;
+      ghStatus.className = 'status-line err';
+    }
+  });
+
+  /* ===================== AUTO-LOAD FROM SHARE LINK / SAME-FOLDER FILES ===================== */
+  // Two ways to auto-load, tried in order:
+  // 1) ?kml=<link>&xlsx=<link> in the page URL — for data hosted anywhere (e.g. pasted Raw links).
+  // 2) Fixed filenames sitting next to this HTML file (du-lieu.kml / du-lieu.kmz / nguoi-phu-trach.xlsx) —
+  //    the simplest workflow: an officer drops 3 files with these exact names into one GitHub repo,
+  //    turns on GitHub Pages, and every field worker's link just works with zero setup.
+  async function tryAutoLoadDefaultFiles(){
+    if(window.location.protocol === 'file:'){
+      kmlStatus.textContent = 'Chưa có dữ liệu bản đồ. Mở mục "Nạp file thủ công" bên dưới để chọn file KML/KMZ (định vị tự động qua link chỉ hoạt động khi mở qua liên kết web).';
+      kmlStatus.className = 'status-line';
+      xlsxStatus.textContent = 'Chưa có dữ liệu người phụ trách. Mở mục "Nạp file thủ công" bên dưới để chọn file Excel.';
+      xlsxStatus.className = 'status-line';
+      document.getElementById('manual-upload-tool').open = true;
+      return;
+    }
+    const folder = window.location.href.replace(/[^/]*$/, '');
+    const kmlCandidates = ['du-lieu.kml', 'du-lieu.kmz'];
+    const xlsxCandidates = ['nguoi-phu-trach.xlsx'];
+
+    let kmlFound = false, xlsxFound = false;
+    for(const name of kmlCandidates){
+      try{
+        const res = await fetch(folder + name, { cache:'no-store' });
+        if(res.ok){ await loadKmlFromUrl(folder + name); kmlFound = true; break; }
+      }catch(e){ /* not found here — try next candidate */ }
+    }
+    if(!kmlFound){
+      kmlStatus.textContent = 'Chưa tìm thấy dữ liệu bản đồ tự động. Mở mục "Nạp file thủ công" bên dưới để chọn file, hoặc kiểm tra lại tên file trên GitHub (du-lieu.kml).';
+      kmlStatus.className = 'status-line';
+    }
+    for(const name of xlsxCandidates){
+      try{
+        const res = await fetch(folder + name, { cache:'no-store' });
+        if(res.ok){ await loadXlsxFromUrl(folder + name); xlsxFound = true; break; }
+      }catch(e){ /* not found — fine, officer may use query-string links or manual upload instead */ }
+    }
+    if(!xlsxFound){
+      xlsxStatus.textContent = 'Chưa tìm thấy dữ liệu người phụ trách tự động. Mở mục "Nạp file thủ công" bên dưới để chọn file, hoặc kiểm tra lại tên file trên GitHub (nguoi-phu-trach.xlsx).';
+      xlsxStatus.className = 'status-line';
+    }
+    if(!kmlFound && !xlsxFound){
+      document.getElementById('manual-upload-tool').open = true;
+    }
+  }
+
+  (function bootstrap(){
+    // Priority 1: officer has filled in CONFIG_KML_URL / CONFIG_XLSX_URL above
+    if(CONFIG_KML_URL)  loadKmlFromUrl(CONFIG_KML_URL);
+    if(CONFIG_XLSX_URL) loadXlsxFromUrl(CONFIG_XLSX_URL);
+    if(CONFIG_KML_URL || CONFIG_XLSX_URL) return;
+
+    // Priority 2: query-string ?kml=...&xlsx=... (advanced use, e.g. testing different datasets)
+    const params = new URLSearchParams(window.location.search);
+    const kmlUrl = params.get('kml');
+    const xlsxUrl = params.get('xlsx');
+    if(kmlUrl)  loadKmlFromUrl(kmlUrl);
+    if(xlsxUrl) loadXlsxFromUrl(xlsxUrl);
+    if(kmlUrl || xlsxUrl) return;
+
+    // Priority 3: look for fixed-name files in the same folder (du-lieu.kml, nguoi-phu-trach.xlsx)
+    tryAutoLoadDefaultFiles();
+  })();
+
+})();
+</script>
+</body>
+</html>
